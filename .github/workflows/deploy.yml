@@ -3,10 +3,12 @@ name: Deploy MUSIC SLAY 2026
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,6 +24,7 @@ jobs:
       - name: Build frontend
         run: npm run build
       - name: Deploy Worker and static assets
+        if: github.event_name != 'pull_request'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
