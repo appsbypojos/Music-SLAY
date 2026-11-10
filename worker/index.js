@@ -97,7 +97,8 @@ const fail = (error, origin) => {
   const message = error?.message || "internal_error";
   const status = message === "database_not_configured" ? 503 :
     message === "role_lookup_failed" ? 503 :
-    message === "phase_closed" ? 409 :
+    message === "phase_closed" || message === "top5_required" ? 409 :
+    message === "slay_not_found" ? 404 :
     ["invalid_candidate","invalid_names","invalid_score","too_many_votes","invalid_top5","duplicate_candidate","invalid_duration","invalid_phase_transition"].includes(message) ? 400 : 500;
   return json({ error: status === 500 ? "request_failed" : message }, status, origin);
 };
@@ -163,7 +164,9 @@ export default {
             const filter = ids.map(id => `"${id}"`).join(",");
             candidates = await dbRequest(env, `candidates?nomination_id=in.(${filter})&select=id,nomination_id,display_name,suggestion_count,is_top5&order=created_at.asc`);
           }
-          return json({ slay, nominations: nominations.map(n => ({ ...n, candidates: candidates.filter(c => c.nomination_id === n.id) })), role: auth.role }, 200, sameOrigin);
+          const myVotes = auth.role === "participant" ? await dbRequest(env, `votes?voter_hash=eq.${await userHash(env, auth.user.id, "vote")}&select=nomination_id,candidate_id`) : [];
+          const myScores = auth.role === "jury" ? await dbRequest(env, `jury_scores?juror_telegram_id=eq.${auth.user.id}&select=nomination_id,candidate_id,score`) : [];
+          return json({ slay, nominations: nominations.map(n => ({ ...n, candidates: candidates.filter(c => c.nomination_id === n.id) })), myVotes, myScores, role: auth.role }, 200, sameOrigin);
         }
 
         if (url.pathname === "/api/submissions" && request.method === "POST") {
