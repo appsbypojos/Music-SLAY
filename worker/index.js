@@ -99,7 +99,7 @@ async function identityHash(env, telegramId) {
 
 function errorResponse(error, origin) {
   const message = String(error?.message || "internal_error");
-  const known = ["phase_closed", "nomination_locked", "invalid_submission", "invalid_vote", "duplicate_candidates", "candidate_not_in_nomination", "candidate_not_in_top5", "invalid_score", "invalid_phase_or_duration", "invalid_top5", "slay_not_found"];
+  const known = ["phase_closed", "nomination_locked", "invalid_submission", "invalid_vote", "duplicate_candidates", "candidate_not_in_nomination", "candidate_not_in_top5", "invalid_score", "invalid_phase_or_duration", "invalid_phase_transition", "invalid_top5", "slay_not_found"];
   const matched = known.find(code => message.includes(code));
   if (matched) return json({ error: matched }, 409, origin);
   if (message === "database_not_configured") return json({ error: message }, 503, origin);
@@ -221,7 +221,7 @@ export default {
           const body = await request.json();
           if (!body.nominationId || !Array.isArray(body.candidateIds)) return json({ error: "invalid_top5" }, 400, sameOrigin);
           const result = await dbRequest(env, "rpc/set_nomination_top5", {
-            method: "POST", body: { p_nomination_id: body.nominationId, p_candidate_ids: body.candidateIds }
+            method: "POST", body: { p_nomination_id: body.nominationId, p_candidate_ids: body.candidateIds, p_actor_id: String(session.user.id) }
           });
           return json(result, 200, sameOrigin);
         }
