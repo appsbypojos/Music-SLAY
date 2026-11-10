@@ -209,6 +209,100 @@ export default {
           });
           return json({ ok: true }, 200, sameOrigin);
         }
+        if (url.pathname === "/api/results" && request.method === "GET") {
+          const slays = await dbRequest(env, "slays?select=id,title,current_phase&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ results: [] }, 200, sameOrigin);
+
+          const slayId = slays[0].id;
+          const nominations = await dbRequest(
+            env,
+            `nominations?slay_id=eq.${slayId}&select=id,name,position&order=position.asc`
+          );
+          const nominationIds = nominations.map(n => n.id);
+
+          let candidates = [];
+          let voteRows = [];
+          let juryRows = [];
+
+          if (nominationIds.length) {
+            const filter = nominationIds.map(id => `"${id}"`).join(",");
+            candidates = await dbRequest(
+              env,
+              `candidates?nomination_id=in.(${filter})&select=id,nomination_id,display_name,is_top5&order=created_at.asc`
+            );
+            voteRows = await dbRequest(
+              env,
+              `votes?nomination_id=in.(${filter})&select=nomination_id,candidate_id`
+            );
+            juryRows = await dbRequest(
+              env,
+              `jury_scores?nomination_id=in.(${filter})&select=nomination_id,candidate_id,juror_telegram_id,score`
+            );
+          }
+
+          const voteCounts = new Map();
+          for (const vote of voteRows) {
+            const key = `${vote.nomination_id}:${vote.candidate_id}`;
+            voteCounts.set(key, (voteCounts.get(key) || 0) + 1);
+          }
+
+          const juryByCandidate = new Map();
+          for (const score of juryRows) {
+            const key = `${score.nomination_id}:${score.candidate_id}`;
+            if (!juryByCandidate.has(key)) juryByCandidate.set(key, []);
+            juryByCandidate.get(key).push({
+              jurorTelegramId: String(score.juror_telegram_id),
+              score: Number(score.score)
+            });
+          }
+
+          const results = nominations.map(nomination => {
+            const nominationCandidates = candidates
+              .filter(candidate => candidate.nomination_id === nomination.id)
+              .map(candidate => {
+                const userVotes = voteCounts.get(`${nomination.id}:${candidate.id}`) || 0;
+                const juryScores = juryByCandidate.get(`${nomination.id}:${candidate.id}`) || [];
+
+                const juryVotes = juryScores.map(entry => ({
+                  jurorTelegramId: entry.jurorTelegramId,
+                  score: entry.score,
+                  percent: entry.score * 10,
+                  votes: userVotes * entry.score / 10
+                }));
+
+                const juryVotesTotal = juryVotes.reduce((total, entry) => total + entry.votes, 0);
+                const finalScore = userVotes + juryVotesTotal;
+
+                return {
+                  candidateId: candidate.id,
+                  candidate: candidate.display_name,
+                  userVotes,
+                  juryScores,
+                  juryVotes,
+                  juryVotesTotal,
+                  finalScore
+                };
+              })
+              .sort((a, b) => b.finalScore - a.finalScore || b.userVotes - a.userVotes || a.candidate.localeCompare(b.candidate));
+
+            return {
+              nominationId: nomination.id,
+              nomination: nomination.name,
+              candidates: nominationCandidates,
+              winner: nominationCandidates[0] || null
+            };
+          });
+
+          return json({
+            slay: slays[0],
+            formula: {
+              description: "finalScore = userVotes + sum(userVotes * juryScore / 10)",
+              juryVotePerMember: "userVotes * juryScore / 10"
+            },
+            results
+          }, 200, sameOrigin);
+        }
+
         if (url.pathname === "/api/admin/phase" && request.method === "POST") {
           if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
           const body = await request.json();
