@@ -8,11 +8,27 @@ Web app for a multi-stage music awards process.
 - Supabase Postgres with Row Level Security
 - Future Telegram Mini App integration
 
+## Infrastructure
+- Supabase project: `ueqetvauqgrdyghxdyip`
+- Supabase region: `eu-north-1`
+- Supabase URL: `https://ueqetvauqgrdyghxdyip.supabase.co`
+- Database migration `supabase/migrations/001_initial_schema.sql` has been applied and verified (8 public tables, RLS enabled).
+
 ## Local development
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
+
+The browser may use only the Supabase publishable/anon key. Never put a service-role or secret key in a `VITE_*` variable.
+
+## Cloudflare Worker
+Worker name: `music-slay-2026`.
+
+The Worker has Supabase URL and publishable key configured as Worker-side bindings. A service-role key and Telegram bot token have not been configured. Do not enable privileged writes until Telegram `initData` validation and server-side authorization are implemented.
+
+The Worker is deployed, but a public `workers.dev` hostname is not yet provisioned for this Cloudflare account. Open the Workers & Pages dashboard once to create the account subdomain, then deploy/attach the static frontend.
 
 ## Build and deploy
 ```bash
@@ -20,18 +36,7 @@ npm run build
 npx wrangler deploy
 ```
 
-Configure Worker secrets before enabling backend routes:
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY` (server-side only if needed)
-- `SUPABASE_SERVICE_ROLE_KEY` (secret; never expose to browser)
-- `TELEGRAM_BOT_TOKEN`
+## Current implementation status
+The repository contains the initial React UI and infrastructure scaffold. The UI still uses placeholder candidates (Артист1, Название трека1, etc.) and local component state. Database schema exists, but UI actions are not yet persisted to Supabase. API mutations, Telegram authentication, server-side phase timers, nomination isolation, voting rules, jury formula, and award publication must be implemented and tested before production use.
 
-Set frontend public variables only when intentionally used:
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-
-## Current status
-Initial UI and infrastructure scaffold. The UI uses placeholder candidates such as Артист1 and Название трека1. API mutations, Telegram authentication, phase timers, voting rules, jury formula, and award publication require backend implementation before production use.
-
-## Database
-Apply `supabase/migrations/001_initial_schema.sql` to the dedicated Supabase project after it is created. Do not use a production service-role key in the frontend.
+The jury scoring formula remains intentionally unimplemented pending approval.
