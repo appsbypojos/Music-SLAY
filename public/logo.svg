@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#050508"/>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <text x="256" y="200" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="56" font-weight="800" fill="#fff" letter-spacing="4">MUSIC</text>
+  <text x="256" y="280" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="72" font-weight="800" fill="url(#g)" letter-spacing="2">SLAY</text>
+  <text x="256" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#9b8fb0" letter-spacing="8">2026</text>
+  <circle cx="420" cy="120" r="8" fill="#a855f7" opacity="0.9"/>
+  <path d="M40 400 Q 120 320 200 380" stroke="#a855f7" stroke-width="3" fill="none" opacity="0.6"/>
+</svg>
