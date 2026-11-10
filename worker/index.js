@@ -99,7 +99,7 @@ async function identityHash(env, telegramId) {
 
 function errorResponse(error, origin) {
   const message = String(error?.message || "internal_error");
-  const known = ["phase_closed", "nomination_locked", "invalid_submission", "invalid_vote", "duplicate_candidates", "candidate_not_in_nomination", "candidate_not_in_top5", "invalid_score", "invalid_phase_or_duration", "slay_not_found"];
+  const known = ["phase_closed", "nomination_locked", "invalid_submission", "invalid_vote", "duplicate_candidates", "candidate_not_in_nomination", "candidate_not_in_top5", "invalid_score", "invalid_phase_or_duration", "invalid_top5", "slay_not_found"];
   const matched = known.find(code => message.includes(code));
   if (matched) return json({ error: matched }, 409, origin);
   if (message === "database_not_configured") return json({ error: message }, 503, origin);
