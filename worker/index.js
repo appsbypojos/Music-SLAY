@@ -156,6 +156,12 @@ export default {
           if (!slay) return json({ slay: null, nominations: [] }, 200, sameOrigin);
           const nominations = await dbRequest(env,
             `nominations?select=id,name,position,locked_at,candidates(id,display_name,suggestion_count,is_top5)&slay_id=eq.${slay.id}&order=position.asc`);
+          const myVotes = session.role === "participant"
+            ? await dbRequest(env, `votes?select=nomination_id,candidate_id&voter_hash=eq.${await identityHash(env, session.user.id)}`)
+            : [];
+          const myScores = session.role === "jury"
+            ? await dbRequest(env, `jury_scores?select=nomination_id,candidate_id,score&juror_telegram_id=eq.${encodeURIComponent(String(session.user.id))}`)
+            : [];
           return json({
             slay: {
               id: slay.id, title: slay.title, phase: slay.current_phase,
@@ -166,6 +172,8 @@ export default {
               id: n.id, name: n.name, position: n.position, locked: Boolean(n.locked_at),
               candidates: (n.candidates || []).sort((a,b) => a.display_name.localeCompare(b.display_name, "ru"))
             })),
+            myVotes: myVotes || [],
+            myScores: myScores || [],
             role: session.role
           }, 200, sameOrigin);
         }
