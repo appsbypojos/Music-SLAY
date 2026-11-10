@@ -98,7 +98,7 @@ const fail = (error, origin) => {
   const status = message === "database_not_configured" ? 503 :
     message === "role_lookup_failed" ? 503 :
     message === "phase_closed" ? 409 :
-    message === "invalid_candidate" || message === "invalid_names" || message === "invalid_score" || message === "too_many_votes" ? 400 : 500;
+    ["invalid_candidate","invalid_names","invalid_score","too_many_votes","invalid_top5","duplicate_candidate","invalid_duration","invalid_phase_transition"].includes(message) ? 400 : 500;
   return json({ error: status === 500 ? "request_failed" : message }, status, origin);
 };
 
@@ -206,6 +206,30 @@ export default {
           });
           return json({ ok: true }, 200, sameOrigin);
         }
+        if (url.pathname === "/api/admin/phase" && request.method === "POST") {
+          if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          if (typeof body.phase !== "string" || (body.durationSeconds !== null && body.durationSeconds !== undefined && !Number.isInteger(body.durationSeconds))) return json({ error: "invalid_payload" }, 400, sameOrigin);
+          const slays = await dbRequest(env, "slays?select=id&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ error: "slay_not_found" }, 404, sameOrigin);
+          const result = await dbRequest(env, "rpc/ms_admin_set_phase", {
+            method: "POST",
+            body: JSON.stringify({ p_slay_id: slays[0].id, p_next_phase: body.phase, p_duration_seconds: body.durationSeconds ?? null, p_actor_telegram_id: String(auth.user.id) })
+          });
+          return json({ ok: true, slay: result }, 200, sameOrigin);
+        }
+
+        if (url.pathname === "/api/admin/top5" && request.method === "POST") {
+          if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          if (typeof body.nominationId !== "string" || !Array.isArray(body.candidateIds) || body.candidateIds.some(x => typeof x !== "string")) return json({ error: "invalid_payload" }, 400, sameOrigin);
+          const count = await dbRequest(env, "rpc/ms_admin_set_top5", {
+            method: "POST",
+            body: JSON.stringify({ p_nomination_id: body.nominationId, p_candidate_ids: body.candidateIds, p_actor_telegram_id: String(auth.user.id) })
+          });
+          return json({ ok: true, selected: count }, 200, sameOrigin);
+        }
+
         return json({ error: "not_found" }, 404, sameOrigin);
       } catch (error) { return fail(error, sameOrigin); }
     }
