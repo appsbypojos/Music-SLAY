@@ -90,6 +90,32 @@ body::after {
   gap: 14px;
 }
 
+/* Logo: works with current main.jsx (.logo + Lucide) */
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #0c0a12 url('/logo.svg') center/contain no-repeat;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  position: relative;
+  filter: drop-shadow(0 0 12px var(--purple-glow));
+  animation: logoPulse 3.5s ease-in-out infinite;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.logo svg { opacity: 0; width: 0; height: 0; }
+.logo::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 18px;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  animation: ringPulse 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
 .logo-wrap {
   position: relative;
   width: 56px;
@@ -498,13 +524,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   animation: itemIn 0.4s ease-out both;
 }
 
-.candidate:nth-child(1) { animation-delay: 0.05s; }
-.candidate:nth-child(2) { animation-delay: 0.1s; }
-.candidate:nth-child(3) { animation-delay: 0.15s; }
-.candidate:nth-child(4) { animation-delay: 0.2s; }
-.candidate:nth-child(5) { animation-delay: 0.25s; }
-.candidate:nth-child(n+6) { animation-delay: 0.3s; }
-
 @keyframes itemIn {
   from { opacity: 0; transform: translateX(-12px); }
   to { opacity: 1; transform: translateX(0); }
@@ -742,7 +761,7 @@ footer {
   .hero { padding: 36px 0 28px; }
   .panel { padding: 18px 14px; }
   .phase { flex: 1 1 42%; min-width: 0; padding: 10px 8px; font-size: 11px; }
-  .logo-wrap { width: 48px; height: 48px; }
+  .logo, .logo-wrap { width: 48px; height: 48px; }
   .brand b { font-size: 13px; letter-spacing: 1.5px; }
   .award { padding: 28px 8px 20px; }
 }
