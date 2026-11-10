@@ -122,8 +122,11 @@ export default {
       return json({
         ok: true,
         service: "music-slay-api",
+        version: "2026.1.1",
+        app: env.APP_NAME || "MUSIC SLAY 2026",
         telegramConfigured: Boolean(env.TELEGRAM_BOT_TOKEN),
-        databaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY)
+        databaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
+        ts: new Date().toISOString()
       }, 200, sameOrigin);
     }
     if (url.pathname === "/api/config" && request.method === "GET") {
