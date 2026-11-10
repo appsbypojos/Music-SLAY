@@ -59,6 +59,8 @@ function App() {
       candidates: (n.candidates || []).map(c => ({ ...c, name: c.display_name }))
     })));
     setTop5Selection(Object.fromEntries((data.nominations || []).map(n => [n.id, (n.candidates || []).filter(c => c.is_top5).map(c => c.id)])));
+    setSelectedVotes((data.myVotes || []).reduce((acc, v) => ({ ...acc, [v.nomination_id]: [...(acc[v.nomination_id] || []), v.candidate_id] }), {}));
+    setScores(Object.fromEntries((data.myScores || []).map(s => [s.nomination_id + ':' + s.candidate_id, s.score])));
   }
 
   useEffect(() => {
@@ -95,6 +97,8 @@ function App() {
         ...n, candidates: (n.candidates || []).map(c => ({ ...c, name: c.display_name }))
       })));
       setTop5Selection(Object.fromEntries((state.nominations || []).map(n => [n.id, (n.candidates || []).filter(c => c.is_top5).map(c => c.id)])));
+      setSelectedVotes((state.myVotes || []).reduce((acc, v) => ({ ...acc, [v.nomination_id]: [...(acc[v.nomination_id] || []), v.candidate_id] }), {}));
+      setScores(Object.fromEntries((state.myScores || []).map(s => [s.nomination_id + ':' + s.candidate_id, s.score])));
     }).catch(error => {
       setRole('guest');
       setAuthStatus(error.message === 'slay_not_configured' ? 'Выпуск ещё не настроен' : 'Не удалось загрузить данные приложения');
