@@ -40,15 +40,67 @@ async function verifyTelegramInitData(initData, botToken) {
   return { user, authDate };
 }
 
-function roleFor(id, env) {
+function configuredRole(id, env) {
   const value = String(id);
   if (value === String(env.ADMIN_TELEGRAM_ID || "")) return "admin";
   const jurors = (env.JURY_TELEGRAM_IDS || "").split(",").map(x => x.trim()).filter(Boolean);
   if (jurors.includes(value)) return "jury";
-  const observers = (env.OBSERVER_TELEGRAM_IDS || "").split(",").map(x => x.trim()).filter(Boolean);
-  if (observers.includes(value)) return "observer";
   return "participant";
 }
+
+async function dbRequest(env, path, options = {}) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("database_not_configured");
+  const response = await fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+  const raw = await response.text();
+  let data = null;
+  try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
+  if (!response.ok) {
+    const error = new Error(data?.message || data?.hint || "database_request_failed");
+    error.status = response.status;
+    error.code = data?.code;
+    throw error;
+  }
+  return data;
+}
+
+async function authenticate(request, env) {
+  const initData = request.headers.get("X-Telegram-Init-Data");
+  const verified = await verifyTelegramInitData(initData, env.TELEGRAM_BOT_TOKEN);
+  if (!verified) return null;
+  let role = configuredRole(verified.user.id, env);
+  if (role === "participant") {
+    try {
+      const rows = await dbRequest(env, `observer_permissions?telegram_id=eq.${verified.user.id}&select=telegram_id&limit=1`);
+      if (rows?.length) role = "observer";
+    } catch (error) {
+      if (error.message === "database_not_configured") throw error;
+      throw new Error("role_lookup_failed");
+    }
+  }
+  return { user: verified.user, authDate: verified.authDate, role };
+}
+
+async function userHash(env, userId, purpose) {
+  const key = new TextEncoder().encode(env.TELEGRAM_BOT_TOKEN);
+  return hex(await hmac(key, `music-slay-2026:${purpose}:${userId}`));
+}
+
+const fail = (error, origin) => {
+  const message = error?.message || "internal_error";
+  const status = message === "database_not_configured" ? 503 :
+    message === "role_lookup_failed" ? 503 :
+    message === "phase_closed" ? 409 :
+    message === "invalid_candidate" || message === "invalid_names" || message === "invalid_score" || message === "too_many_votes" ? 400 : 500;
+  return json({ error: status === 500 ? "request_failed" : message }, status, origin);
+};
 
 export default {
   async fetch(request, env) {
@@ -59,7 +111,7 @@ export default {
       return new Response(null, { status: 204, headers: {
         "Access-Control-Allow-Origin": sameOrigin || "null",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type,X-Telegram-Init-Data",
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin"
       }});
@@ -82,15 +134,81 @@ export default {
       try { body = await request.json(); } catch { return json({ error: "invalid_json" }, 400, sameOrigin); }
       const verified = await verifyTelegramInitData(body?.initData, env.TELEGRAM_BOT_TOKEN);
       if (!verified) return json({ error: "invalid_or_expired_telegram_init_data" }, 401, sameOrigin);
-      const role = roleFor(verified.user.id, env);
-      return json({
-        authenticated: true,
-        user: { id: String(verified.user.id), firstName: verified.user.first_name || "", username: verified.user.username || null },
-        role,
-        authDate: verified.authDate
-      }, 200, sameOrigin);
+      try {
+        const auth = await authenticate(new Request(request.url, { headers: { "X-Telegram-Init-Data": body.initData } }), env);
+        return json({
+          authenticated: true,
+          user: { id: String(auth.user.id), firstName: auth.user.first_name || "", username: auth.user.username || null },
+          role: auth.role,
+          authDate: auth.authDate
+        }, 200, sameOrigin);
+      } catch (error) { return fail(error, sameOrigin); }
     }
-    if (url.pathname.startsWith("/api/")) return json({ error: "not_implemented" }, 501, sameOrigin);
+
+    if (url.pathname.startsWith("/api/")) {
+      let auth;
+      try { auth = await authenticate(request, env); }
+      catch (error) { return fail(error, sameOrigin); }
+      if (!auth) return json({ error: "unauthorized" }, 401, sameOrigin);
+
+      try {
+        if (url.pathname === "/api/state" && request.method === "GET") {
+          const slays = await dbRequest(env, "slays?select=id,title,current_phase,phase_started_at,phase_ends_at&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ slay: null, nominations: [] }, 200, sameOrigin);
+          const slay = slays[0];
+          const nominations = await dbRequest(env, `nominations?slay_id=eq.${slay.id}&select=id,name,position,locked_at&order=position.asc`);
+          const ids = nominations.map(n => n.id);
+          let candidates = [];
+          if (ids.length) {
+            const filter = ids.map(id => `"${id}"`).join(",");
+            candidates = await dbRequest(env, `candidates?nomination_id=in.(${filter})&select=id,nomination_id,display_name,suggestion_count,is_top5&order=created_at.asc`);
+          }
+          return json({ slay, nominations: nominations.map(n => ({ ...n, candidates: candidates.filter(c => c.nomination_id === n.id) })), role: auth.role }, 200, sameOrigin);
+        }
+
+        if (url.pathname === "/api/submissions" && request.method === "POST") {
+          if (auth.role !== "participant") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          if (typeof body.nominationId !== "string" || !Array.isArray(body.names)) return json({ error: "invalid_payload" }, 400, sameOrigin);
+          const names = body.names.map(x => String(x).trim()).filter(Boolean);
+          const submitterHash = await userHash(env, auth.user.id, "submission");
+          const result = await dbRequest(env, "rpc/ms_submit_candidates", {
+            method: "POST",
+            body: JSON.stringify({ p_nomination_id: body.nominationId, p_submitter_hash: submitterHash, p_names: names })
+          });
+          return json({ ok: true, results: result }, 200, sameOrigin);
+        }
+
+        if (url.pathname === "/api/votes" && request.method === "POST") {
+          if (auth.role !== "participant") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          if (typeof body.nominationId !== "string" || !Array.isArray(body.candidateIds) || body.candidateIds.some(x => typeof x !== "string")) return json({ error: "invalid_payload" }, 400, sameOrigin);
+          const voterHash = await userHash(env, auth.user.id, "vote");
+          const count = await dbRequest(env, "rpc/ms_save_votes", {
+            method: "POST",
+            body: JSON.stringify({ p_nomination_id: body.nominationId, p_voter_hash: voterHash, p_candidate_ids: body.candidateIds })
+          });
+          return json({ ok: true, saved: count }, 200, sameOrigin);
+        }
+
+        if (url.pathname === "/api/jury-score" && request.method === "POST") {
+          if (auth.role !== "jury") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          if (typeof body.nominationId !== "string" || typeof body.candidateId !== "string" || !Number.isInteger(body.score)) return json({ error: "invalid_payload" }, 400, sameOrigin);
+          await dbRequest(env, "rpc/ms_save_jury_score", {
+            method: "POST",
+            body: JSON.stringify({
+              p_nomination_id: body.nominationId,
+              p_candidate_id: body.candidateId,
+              p_juror_telegram_id: String(auth.user.id),
+              p_score: body.score
+            })
+          });
+          return json({ ok: true }, 200, sameOrigin);
+        }
+        return json({ error: "not_found" }, 404, sameOrigin);
+      } catch (error) { return fail(error, sameOrigin); }
+    }
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response("MUSIC SLAY 2026 API is online. Frontend assets are not attached to this Worker deployment.", {
       headers: { "Content-Type": "text/plain; charset=utf-8" }
