@@ -1,42 +1,44 @@
 # MUSIC SLAY 2026
 
-Web app for a multi-stage music awards process.
-
-## Stack
-- React + Vite frontend
-- Cloudflare Workers runtime and static assets
-- Supabase Postgres with Row Level Security
-- Future Telegram Mini App integration
+React + Vite frontend and Cloudflare Worker API for the MUSIC SLAY 2026 awards flow.
 
 ## Infrastructure
-- Supabase project: `ueqetvauqgrdyghxdyip`
-- Supabase region: `eu-north-1`
-- Supabase URL: `https://ueqetvauqgrdyghxdyip.supabase.co`
-- Database migration `supabase/migrations/001_initial_schema.sql` has been applied and verified (8 public tables, RLS enabled).
+- Supabase project: `ueqetvauqgrdyghxdyip` (region `eu-north-1`)
+- Cloudflare Worker: `music-slay-2026`
+- Worker hostname: `https://music-slay-2026.vda45lol.workers.dev`
+- Telegram Mini App SDK is loaded by `index.html`.
+- Telegram `initData` is verified in the Worker using Telegram's HMAC-SHA-256 procedure. The browser never decides its own role.
 
-## Local development
+## Telegram setup required
+Set these Worker secrets in Cloudflare Dashboard → Workers & Pages → music-slay-2026 → Settings → Variables and Secrets:
+- `TELEGRAM_BOT_TOKEN` — token from BotFather. Never commit it or place it in a Vite environment variable.
+- `ADMIN_TELEGRAM_ID` — Telegram numeric ID of the main administrator.
+
+Optional comma-separated Worker secrets:
+- `JURY_TELEGRAM_IDS`
+- `OBSERVER_TELEGRAM_IDS`
+
+Then configure the bot's Mini App URL in BotFather:
+1. Open @BotFather and select the bot.
+2. Use `/setmenubutton` and choose a title.
+3. Set the Web App URL to `https://music-slay-2026.vda45lol.workers.dev`.
+4. Open the bot in Telegram and launch the menu button.
+
+The Worker exposes `POST /api/telegram/session`, which accepts the raw `initData` string and returns a verified user and role. It rejects missing, malformed, expired, or incorrectly signed data. Authentication currently has a 24-hour maximum age.
+
+## Database security
+The Supabase migration creates the initial schema with RLS enabled and no anonymous write policies. Do not expose the Supabase service-role key in the frontend. A server-side database key and the actual mutation handlers are still required before submissions, voting, jury scoring, phase transitions, or award publication can be persisted.
+
+## Build and deployment
 ```bash
 npm install
-cp .env.example .env.local
-npm run dev
-```
-
-The browser may use only the Supabase publishable/anon key. Never put a service-role or secret key in a `VITE_*` variable.
-
-## Cloudflare Worker
-Worker name: `music-slay-2026`.
-
-The Worker has Supabase URL and publishable key configured as Worker-side bindings. A service-role key and Telegram bot token have not been configured. Do not enable privileged writes until Telegram `initData` validation and server-side authorization are implemented.
-
-The Worker is deployed, but a public `workers.dev` hostname is not yet provisioned for this Cloudflare account. Open the Workers & Pages dashboard once to create the account subdomain, then deploy/attach the static frontend.
-
-## Build and deploy
-```bash
 npm run build
 npx wrangler deploy
 ```
 
-## Current implementation status
-The repository contains the initial React UI and infrastructure scaffold. The UI still uses placeholder candidates (Артист1, Название трека1, etc.) and local component state. Database schema exists, but UI actions are not yet persisted to Supabase. API mutations, Telegram authentication, server-side phase timers, nomination isolation, voting rules, jury formula, and award publication must be implemented and tested before production use.
+The Worker API code has been uploaded. The static Vite build is not yet attached to the Worker deployment; the root URL may therefore return the API placeholder until the frontend assets are deployed. The Telegram bot token is also not yet configured, so the session endpoint will return `telegram_not_configured` until the secret is added.
 
-The jury scoring formula remains intentionally unimplemented pending approval.
+## Current implementation boundary
+- Implemented in source: Telegram Web App SDK initialization, server-side `initData` signature and freshness verification, server-derived role mapping, health/config endpoints.
+- Not yet implemented: persistent application API mutations, server-enforced phase timers and transitions, nomination and vote persistence, jury workflow, approved scoring formula, award publication, and the final slideshow data feed.
+- No scoring formula is assumed. The previously discussed weighting needs explicit approval before implementation.
