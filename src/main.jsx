@@ -23,6 +23,8 @@ function App() {
   const [telegramUser,setTelegramUser] = useState(null);
   const [initData,setInitData] = useState('');
   const [slayId,setSlayId] = useState(null);
+  const [phaseEndsAt,setPhaseEndsAt] = useState(null);
+  const [clockNow,setClockNow] = useState(Date.now());
   const [phaseDurationHours,setPhaseDurationHours] = useState(24);
   const [top5Selections,setTop5Selections] = useState({});
   const [isTransitioning,setIsTransitioning] = useState(false);
@@ -36,6 +38,8 @@ function App() {
   const [slide,setSlide] = useState(0);
   const [status,setStatus] = useState('Демо-данные');
   const current = nominations[active] || {name:'Нет номинаций',candidates:[]};
+  const remainingMs = phaseEndsAt ? Math.max(0,new Date(phaseEndsAt).getTime()-clockNow) : null;
+  const remainingLabel = remainingMs===null ? 'без таймера' : remainingMs===0 ? 'время этапа истекло' : `${Math.floor(remainingMs/3600000)} ч ${Math.floor((remainingMs%3600000)/60000)} мин`;
   const winners = useMemo(()=>nominations.map(n=>({category:n.name,winner:n.candidates[0] || 'Победитель не определён'})),[nominations]);
 
   useEffect(() => {
@@ -66,6 +70,7 @@ function App() {
       if (!stateResponse.ok) throw new Error(serverState.error || 'state_load_failed');
       if (serverState.slay) {
         setSlayId(serverState.slay.id);
+        setPhaseEndsAt(serverState.slay.phase_ends_at);
         const phaseLabels = { preparation: 'Подготовка', candidates: 'Кандидаты', voting: 'Голосование', jury: 'Жюри', awards: 'Награждение' };
         setPhase(phaseLabels[serverState.slay.current_phase] || 'Подготовка');
         const mappedNominations = serverState.nominations.map(n => ({ id: n.id, name: n.name, candidates: n.candidates.map(x => x.display_name), candidateIds: Object.fromEntries(n.candidates.map(x => [x.display_name, x.id])), top5: n.candidates.filter(x => x.is_top5).map(x => x.display_name) }));
@@ -81,6 +86,8 @@ function App() {
       setAuthStatus(error.message === 'telegram_not_configured' ? 'Нужно настроить Telegram Bot Token' : 'Не удалось подтвердить Telegram');
     });
   }, []);
+
+  useEffect(()=>{const timer=setInterval(()=>setClockNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
 
   useEffect(()=>{
     if(!slideshow)return;
@@ -107,6 +114,7 @@ function App() {
     if (!response.ok || !data.slay) throw new Error(data.error || 'state_load_failed');
     const phaseLabels = { preparation:'Подготовка', candidates:'Кандидаты', voting:'Голосование', jury:'Жюри', awards:'Награждение' };
     setSlayId(data.slay.id);
+    setPhaseEndsAt(data.slay.phase_ends_at);
     setPhase(phaseLabels[data.slay.current_phase] || 'Подготовка');
     setNominations(data.nominations.map(n=>({id:n.id,name:n.name,candidates:n.candidates.map(x=>x.display_name),candidateIds:Object.fromEntries(n.candidates.map(x=>[x.display_name,x.id])),top5:n.candidates.filter(x=>x.is_top5).map(x=>x.display_name)})));
     setTop5Selections(Object.fromEntries(data.nominations.map(n=>[n.id,n.candidates.filter(x=>x.is_top5).map(x=>x.id)])));
@@ -141,6 +149,7 @@ function App() {
     <section className="hero"><span className="eyebrow">THE AWARDS EXPERIENCE</span><h1>Твоя музыка.<br/><em>Твои победители.</em></h1><p>Пять этапов. От предложений участников до церемонии награждения.</p></section>
     <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span></section>
     <nav className="phases">{phases.map((p,i)=><button key={p} className={phase===p?'phase active':'phase'} onClick={()=>setPhase(p)}><span>{String(i+1).padStart(2,'0')}</span>{p}</button>)}</nav>
+    {role!=='Гость' && <p className="hint phase-timer">Окончание текущего этапа: {remainingLabel}</p>}
     {phase==='Подготовка' && <section className="panel"><div className="sectionhead"><div><span className="eyebrow">START HERE</span><h2>Подготовка Slay</h2></div><ShieldCheck/></div><label>Название выпуска</label><input defaultValue="MUSIC SLAY 2026" disabled/><h3>Номинации</h3>{nominations.map(n=><div className="nomrow" key={n.name}><span>{n.name}</span><span className="muted">{n.candidates.length} демо-кандидатов</span></div>)}<p className="hint">Текущий этап и номинации загружаются из Supabase.</p>{role==='Администратор' && <div className="admin-controls"><label>Длительность следующего этапа (часы; 0 — без таймера)</label><input type="number" min="0" max="720" value={phaseDurationHours} onChange={e=>setPhaseDurationHours(e.target.value)}/><button className="primary" disabled={isTransitioning} onClick={()=>advancePhase('candidates')}>Начать сбор кандидатов</button></div>}</section>}
     {phase==='Кандидаты' && <section className="panel"><div className="sectionhead"><div><span className="eyebrow">NOMINATIONS</span><h2>Предложить кандидатов</h2></div><Music2/></div><div className="tabs">{nominations.map((n,i)=><button className={active===i?'tab selected':'tab'} onClick={()=>setActive(i)} key={n.name}>{n.name}</button>)}</div><h3>{current.name}</h3>{role==='Участник'?<><textarea value={suggestion} onChange={e=>setSuggestion(e.target.value)} placeholder={active===1?'Артист1 — Название трека1, Артист2 — Название трека2':'Артист1, Артист2, Исполнитель3'} /><button className="primary" onClick={addSuggestions}>Отправить предложения <ChevronRight size={17}/></button></>:<p className="hint">{role==='Гость'?'Для участия откройте Mini App в Telegram и пройдите проверку.':'Для этой роли отправка предложений недоступна.'}</p>}{current.candidates.map(c=><div className="candidate" key={c}>{c}</div>)}{role==='Администратор' && <div className="admin-controls"><h3>Выбрать топ-5 для этой номинации</h3>{current.candidates.map(c=><label className="candidate" key={c}><input type="checkbox" checked={(top5Selections[current.id]||[]).includes(current.candidateIds?.[c])} onChange={e=>setTop5Selections(s=>{const existing=s[current.id]||[];if(e.target.checked&&existing.length>=5){setStatus('Можно выбрать не более пяти кандидатов');return s;}return {...s,[current.id]:e.target.checked?[...existing,current.candidateIds[c]]:existing.filter(id=>id!==current.candidateIds[c])};})}/>{c}</label>)}<button className="primary" onClick={()=>saveTop5(current)}>Сохранить топ-5</button><button disabled={isTransitioning} onClick={()=>advancePhase('voting')}>Перейти к голосованию</button></div>}</section>}
     {phase==='Голосование' && <section className="panel"><div className="sectionhead"><div><span className="eyebrow">YOUR CHOICE</span><h2>Голосование</h2></div><Check/></div><div className="tabs">{nominations.map((n,i)=><button className={active===i?'tab selected':'tab'} onClick={()=>setActive(i)} key={n.name}>{n.name}</button>)}</div><h3>{current.name}</h3><p className="hint">Топ-5 этой номинации. Списки и голоса не смешиваются.</p>{(current.top5 || []).map((c,i)=><button disabled={role!=='Участник'} className={'vote '+((votes[active]||[]).includes(c)?'chosen':'')} onClick={()=>toggleVote(c)} key={c}><span className="rank">{i+1}</span><span>{c}</span><span className="check">{(votes[active]||[]).includes(c)?'✓':'+'}</span></button>)}<button className="primary" disabled={role!=='Участник' || !current.id || !initData} onClick={async()=>{const candidateIds=(votes[active]||[]).map(name=>current.candidateIds?.[name]).filter(Boolean);const response=await fetch('/api/votes',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:JSON.stringify({nominationId:current.id,candidateIds})});const result=await response.json();setStatus(response.ok?'Голос сохранён в Supabase':(result.error||'Ошибка сохранения голоса'));}}>Подтвердить выбор</button>{role==='Администратор' && <div className="admin-controls"><label>Длительность этапа жюри (часы)</label><input type="number" min="0" max="720" value={phaseDurationHours} onChange={e=>setPhaseDurationHours(e.target.value)}/><button disabled={isTransitioning} onClick={()=>advancePhase('jury')}>Завершить голосование и открыть жюри</button></div>}</section>}
