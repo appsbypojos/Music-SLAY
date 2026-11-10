@@ -25,6 +25,7 @@ function App() {
   const [suggestion, setSuggestion] = useState('');
   const [selectedVotes, setSelectedVotes] = useState({});
   const [scores, setScores] = useState({});
+  const [top5Selection, setTop5Selection] = useState({});
   const [durationHours, setDurationHours] = useState(24);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
@@ -57,6 +58,7 @@ function App() {
       ...n,
       candidates: (n.candidates || []).map(c => ({ ...c, name: c.display_name }))
     })));
+    setTop5Selection(Object.fromEntries((data.nominations || []).map(n => [n.id, (n.candidates || []).filter(c => c.is_top5).map(c => c.id)])));
   }
 
   useEffect(() => {
@@ -92,6 +94,7 @@ function App() {
       setNominations((state.nominations || []).map(n => ({
         ...n, candidates: (n.candidates || []).map(c => ({ ...c, name: c.display_name }))
       })));
+      setTop5Selection(Object.fromEntries((state.nominations || []).map(n => [n.id, (n.candidates || []).filter(c => c.is_top5).map(c => c.id)])));
     }).catch(error => {
       setRole('guest');
       setAuthStatus(error.message === 'slay_not_configured' ? 'Выпуск ещё не настроен' : 'Не удалось загрузить данные приложения');
@@ -128,6 +131,22 @@ function App() {
     const selected = v[current.id] || [];
     return { ...v, [current.id]: selected.includes(id) ? selected.filter(x => x !== id) : selected.length < 5 ? [...selected, id] : selected };
   });
+
+  const toggleTop5 = candidateId => setTop5Selection(v => {
+    const selected = v[current.id] || [];
+    return { ...v, [current.id]: selected.includes(candidateId) ? selected.filter(x => x !== candidateId) : selected.length < 5 ? [...selected, candidateId] : selected };
+  });
+
+  const saveTop5 = async () => {
+    if (!current.id || busy) return;
+    setBusy(true);
+    try {
+      await api('/api/admin/top5', { nominationId: current.id, candidateIds: top5Selection[current.id] || [] });
+      await loadState();
+      setStatus('Топ-5 номинации сохранён.');
+    } catch (error) { notifyError(error); }
+    finally { setBusy(false); }
+  };
 
   const saveVotes = async () => {
     if (!current.id || busy) return;
@@ -197,6 +216,7 @@ function App() {
       <h3>{current.name}</h3>
       {role==='participant' && !phaseExpired ? <><textarea value={suggestion} onChange={e=>setSuggestion(e.target.value)} placeholder="Введите имена через запятую или с новой строки" /><button className="primary" disabled={busy || !suggestion.trim()} onClick={submitCandidates}>Отправить предложения <ChevronRight size={17}/></button></> : <p className="hint">{role==='participant' ? 'Время этапа истекло.' : 'У этой роли нет права предлагать кандидатов.'}</p>}
       {current.candidates.map(c=><div className="candidate" key={c.id}>{c.name}<span className="muted">{c.suggestion_count} предложений</span></div>)}
+      {role==='admin' && <div className="top5-admin"><h3>Утвердить топ-5 для голосования</h3><p className="hint">Выберите не более пяти кандидатов. Выбор сохраняется отдельно для каждой номинации.</p>{current.candidates.map(c=><label className="candidate top5-option" key={c.id}><input type="checkbox" checked={(top5Selection[current.id] || []).includes(c.id)} disabled={busy || phaseExpired || (!(top5Selection[current.id] || []).includes(c.id) && (top5Selection[current.id] || []).length>=5)} onChange={()=>toggleTop5(c.id)}/>{c.name}<span className="muted">{c.suggestion_count} предложений</span></label>)}<button className="primary" disabled={busy || phaseExpired} onClick={saveTop5}>Сохранить топ-5</button></div>}
     </section>}
 
     {phase==='voting' && <section className="panel">
