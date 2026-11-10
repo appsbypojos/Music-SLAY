@@ -208,6 +208,16 @@ export default {
           return json(result, 200, sameOrigin);
         }
 
+        if (url.pathname === "/api/admin/top5" && request.method === "POST") {
+          if (session.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          if (!body.nominationId || !Array.isArray(body.candidateIds)) return json({ error: "invalid_top5" }, 400, sameOrigin);
+          const result = await dbRequest(env, "rpc/set_nomination_top5", {
+            method: "POST", body: { p_nomination_id: body.nominationId, p_candidate_ids: body.candidateIds }
+          });
+          return json(result, 200, sameOrigin);
+        }
+
         if (url.pathname === "/api/admin/phase" && request.method === "POST") {
           if (session.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
           const body = await request.json();
