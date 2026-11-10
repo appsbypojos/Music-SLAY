@@ -36,7 +36,7 @@ npm run build
 npx wrangler deploy
 ```
 
-The Worker API code has been uploaded. The static Vite build is not yet attached to the Worker deployment; the root URL may therefore return the API placeholder until the frontend assets are deployed. The Telegram bot token is also not yet configured, so the session endpoint will return `telegram_not_configured` until the secret is added.
+The Worker API code has been uploaded. A GitHub Actions deployment workflow is included at `.github/workflows/deploy.yml`. Add repository Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to allow pushes to `main` to build and deploy the Vite static assets. The current Worker deployment contains the API module only; the frontend bundle is not attached yet. The Telegram bot token is also not configured, so the session endpoint returns `telegram_not_configured` until its secret is added.
 
 ## Current implementation boundary
 - Implemented in source: Telegram Web App SDK initialization, server-side `initData` signature and freshness verification, server-derived role mapping, health/config endpoints.
