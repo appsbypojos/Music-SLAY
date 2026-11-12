@@ -24,6 +24,7 @@ function App() {
   const [initData,setInitData] = useState('');
   const [slayId,setSlayId] = useState(null);
   const [phaseEndsAt,setPhaseEndsAt] = useState(null);
+  const [launchNow,setLaunchNow] = useState(Date.now());
   const [phaseDurationHours,setPhaseDurationHours] = useState(24);
   const [top5Selections,setTop5Selections] = useState({});
   const [isTransitioning,setIsTransitioning] = useState(false);
@@ -96,6 +97,11 @@ function App() {
   }, []);
 
 
+  useEffect(() => {
+    const timer = setInterval(() => setLaunchNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(()=>{
     if(!slideshow)return;
     const timer=setInterval(()=>setSlide(s=>(s+1)%Math.max(winners.length,1)),10000);
@@ -160,6 +166,20 @@ function App() {
 
   return <main className="shell">
     <header className="top"><div className="brand"><div className="logo-wrap"><img src="https://raw.githubusercontent.com/appsbypojos/Music-SLAY/main/file_0000000003c88246aacceec2fd0dc323.png" alt="MUSIC SLAY 2026" /></div><div><b>MUSIC SLAY</b><small>Музыкальная премия · 2026</small></div></div><div className="header-right"><span className="pill"><span className="dot"/> {authStatus}</span></div></header>
+    <section className="launch-countdown panel" aria-label="Обратный отсчёт до запуска">
+      <span className="eyebrow">MUSIC SLAY 2026</span>
+      <h1>До старта премии</h1>
+      <div className="launch-timer">
+        {(() => {
+          const remaining = Math.max(0, new Date(2026, 11, 1, 0, 0, 0).getTime() - launchNow);
+          const days = Math.floor(remaining / 86400000);
+          const hours = Math.floor((remaining % 86400000) / 3600000);
+          const minutes = Math.floor((remaining % 3600000) / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          return <><span><b>{days}</b><small>дней</small></span><span><b>{String(hours).padStart(2, '0')}</b><small>часов</small></span><span><b>{String(minutes).padStart(2, '0')}</b><small>минут</small></span><span><b>{String(seconds).padStart(2, '0')}</b><small>секунд</small></span></>;
+        })()}
+      </div>
+    </section>
     <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span></section>
     
     {role==='Гость' && <section className="panel waiting-panel"><span className="eyebrow">MUSIC SLAY 2026</span><h2>Премия готовится</h2><p className="hint">Доступ к текущему этапу откроется после запуска. Откройте Mini App позже, чтобы участвовать.</p></section>}
