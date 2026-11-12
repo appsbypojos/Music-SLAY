@@ -987,3 +987,16 @@ footer {
   .launch-timer span { padding: 13px 4px 10px; border-radius: 10px; }
   .launch-timer small { font-size: 9px; letter-spacing: .4px; }
 }
+
+
+/* Soft, subdued wallpaper background */
+body::after {
+  inset: -18px;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: url('https://raw.githubusercontent.com/appsbypojos/Music-SLAY/main/image%20(4).jpg') center center / cover no-repeat;
+  filter: blur(16px) brightness(.24) saturate(.62);
+  opacity: .62;
+  animation: none;
+}
