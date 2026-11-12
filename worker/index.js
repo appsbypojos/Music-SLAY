@@ -100,7 +100,7 @@ const fail = (error, origin) => {
     message === "role_lookup_failed" ? 503 :
     message === "phase_closed" || message === "top5_required" ? 409 :
     message === "slay_not_found" ? 404 :
-    ["invalid_candidate","invalid_names","invalid_score","too_many_votes","invalid_top5","duplicate_candidate","invalid_duration","invalid_phase_transition"].includes(message) ? 400 : 500;
+    ["invalid_candidate","invalid_names","invalid_score","too_many_votes","invalid_top5","duplicate_candidate","invalid_duration","invalid_phase_transition","invalid_nominations"].includes(message) ? 400 : 500;
   return json({ error: status === 500 ? "request_failed" : message }, status, origin);
 };
 
@@ -318,6 +318,49 @@ export default {
             body: JSON.stringify({ p_slay_id: slays[0].id, p_next_phase: body.phase, p_duration_seconds: body.durationSeconds ?? null, p_actor_telegram_id: String(auth.user.id) })
           });
           return json({ ok: true, slay: result }, 200, sameOrigin);
+        }
+
+        if (url.pathname === "/api/admin/nominations" && request.method === "POST") {
+          if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          if (!Array.isArray(body.names) || body.names.length < 1 || body.names.length > 20) return json({ error: "invalid_nominations" }, 400, sameOrigin);
+          const names = body.names.map(value => typeof value === "string" ? value.trim().replace(/\\s+/g, " ") : "");
+          if (names.some(name => name.length < 2 || name.length > 100) || new Set(names.map(name => name.toLocaleLowerCase())).size !== names.length) return json({ error: "invalid_nominations" }, 400, sameOrigin);
+          const slays = await dbRequest(env, "slays?select=id,current_phase&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ error: "slay_not_found" }, 404, sameOrigin);
+          if (slays[0].current_phase !== "preparation") return json({ error: "nominations_locked" }, 409, sameOrigin);
+          const slayId = slays[0].id;
+          const existing = await dbRequest(env, `nominations?slay_id=eq.${slayId}&select=id,name,position&order=position.asc`);
+          const retained = [];
+          for (let index = 0; index < names.length; index++) {
+            const match = existing[index];
+            if (match) {
+              await dbRequest(env, `nominations?id=eq.${match.id}&slay_id=eq.${slayId}`, {
+                method: "PATCH",
+                headers: { Prefer: "return=minimal" },
+                body: JSON.stringify({ name: names[index], position: index })
+              });
+              retained.push(match.id);
+            } else {
+              const created = await dbRequest(env, "nominations", {
+                method: "POST",
+                headers: { Prefer: "return=representation" },
+                body: JSON.stringify({ slay_id: slayId, name: names[index], position: index })
+              });
+              retained.push(created[0].id);
+            }
+          }
+          const removed = existing.slice(names.length).map(row => row.id);
+          if (removed.length) {
+            const filter = removed.map(id => `"${id}"`).join(",");
+            await dbRequest(env, `nominations?id=in.(${filter})&slay_id=eq.${slayId}`, { method: "DELETE" });
+          }
+          await dbRequest(env, "admin_action_log", {
+            method: "POST",
+            headers: { Prefer: "return=minimal" },
+            body: JSON.stringify({ actor_telegram_id: String(auth.user.id), action: "edit_nominations", details: { names } })
+          });
+          return json({ ok: true, count: names.length }, 200, sameOrigin);
         }
 
         if (url.pathname === "/api/admin/top5" && request.method === "POST") {
