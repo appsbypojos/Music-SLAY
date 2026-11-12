@@ -1033,3 +1033,13 @@ footer.site-footer a:hover { text-decoration: underline; }
   .shell { padding-bottom: 132px; }
   footer.site-footer { font-size: 11px; gap: 4px 8px; padding-left: 10px; padding-right: 10px; }
 }
+
+
+/* Admin nomination list editor */
+.nomination-editor { display:flex; align-items:center; gap:8px; margin:9px 0; }
+.nomination-editor input { min-width:0; }
+.nomination-editor .remove-nomination { flex:0 0 auto; color:#fca5a5; border-color:rgba(248,113,113,.25); }
+@media (max-width:420px) {
+  .nomination-editor { align-items:stretch; }
+  .nomination-editor .remove-nomination { padding:10px; }
+}
