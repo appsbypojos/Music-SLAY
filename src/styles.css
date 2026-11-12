@@ -1066,3 +1066,20 @@ footer.site-footer a:hover { text-decoration: underline; }
   margin-top: 3px;
   font-size: 9px;
 }
+
+
+.candidate-list-inline {
+  line-height: 2;
+  font-size: 15px;
+}
+.candidate-inline {
+  display: inline;
+  cursor: pointer;
+}
+.candidate-inline input {
+  margin: 0 5px 0 0;
+  vertical-align: middle;
+}
+.candidate-inline span {
+  vertical-align: middle;
+}
