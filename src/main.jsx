@@ -86,7 +86,15 @@ function App() {
       setAuthStatus('Telegram подтверждён');
     }).catch(error => {
       setRole('Гость');
-      setAuthStatus(error.message === 'telegram_not_configured' ? 'Нужно настроить Telegram Bot Token' : 'Не удалось подтвердить Telegram');
+      const authErrors = {
+        telegram_not_configured: 'Не настроен токен Telegram-бота',
+        invalid_or_expired_telegram_init_data: 'Telegram отклонил данные: неверный токен бота, подпись или срок действия',
+        role_lookup_failed: 'Telegram подтверждён, но не удалось загрузить роль пользователя',
+        database_not_configured: 'Не настроено подключение к базе данных',
+        state_load_failed: 'Telegram подтверждён, но не удалось загрузить состояние приложения',
+        request_failed: 'Ошибка сервера при проверке Telegram'
+      };
+      setAuthStatus(authErrors[error.message] || `Ошибка авторизации: ${error.message || 'неизвестная ошибка'}`);
     });
   }, []);
 
