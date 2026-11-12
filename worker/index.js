@@ -186,6 +186,29 @@ export default {
           return json({ ok: true, results: result }, 200, sameOrigin);
         }
 
+        if (url.pathname === "/api/admin/votes" && request.method === "GET") {
+          if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
+          const slays = await dbRequest(env, "slays?select=id,title&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ votes: [] }, 200, sameOrigin);
+          const nominations = await dbRequest(env, `nominations?slay_id=eq.${slays[0].id}&select=id,name&order=position.asc`);
+          const nominationIds = nominations.map(n => n.id);
+          if (!nominationIds.length) return json({ votes: [] }, 200, sameOrigin);
+          const filter = nominationIds.map(id => `"${id}"`).join(",");
+          const votes = await dbRequest(env, `votes?nomination_id=in.(${filter})&select=id,nomination_id,candidate_id,voter_telegram_id,created_at&order=created_at.desc`);
+          const candidates = await dbRequest(env, `candidates?nomination_id=in.(${filter})&select=id,display_name`);
+          const nominationMap = Object.fromEntries(nominations.map(n => [n.id, n.name]));
+          const candidateMap = Object.fromEntries(candidates.map(c => [c.id, c.display_name]));
+          return json({
+            votes: votes.map(v => ({
+              id: v.id,
+              nomination: nominationMap[v.nomination_id] || "—",
+              candidate: candidateMap[v.candidate_id] || "—",
+              voter: v.voter_telegram_id || "Старый голос — ID не сохранён",
+              created_at: v.created_at
+            }))
+          }, 200, sameOrigin);
+        }
+
         if (url.pathname === "/api/votes" && request.method === "POST") {
           if (auth.role !== "participant") return json({ error: "forbidden" }, 403, sameOrigin);
           const body = await request.json();
@@ -193,7 +216,7 @@ export default {
           const voterHash = await userHash(env, auth.user.id, "vote");
           const count = await dbRequest(env, "rpc/ms_save_votes", {
             method: "POST",
-            body: JSON.stringify({ p_nomination_id: body.nominationId, p_voter_hash: voterHash, p_candidate_ids: body.candidateIds })
+            body: JSON.stringify({ p_nomination_id: body.nominationId, p_voter_hash: voterHash, p_candidate_ids: body.candidateIds, p_voter_telegram_id: String(auth.user.id) })
           });
           return json({ ok: true, saved: count }, 200, sameOrigin);
         }
