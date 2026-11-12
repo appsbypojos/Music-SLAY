@@ -42,7 +42,8 @@ async function verifyTelegramInitData(initData, botToken) {
 
 function configuredRole(id, env) {
   const value = String(id);
-  if (value === String(env.ADMIN_TELEGRAM_ID || "")) return "admin";
+  const adminId = String(env.ADMIN_TELEGRAM_ID || "").trim();
+  if (/^\d+$/.test(adminId) && value === adminId) return "admin";
   const jurors = (env.JURY_TELEGRAM_IDS || "").split(",").map(x => x.trim()).filter(Boolean);
   if (jurors.includes(value)) return "jury";
   return "participant";
