@@ -1,245 +1,448 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createClient } from '@supabase/supabase-js';
-import { Trophy, Music2, ShieldCheck, ChevronRight, Check, Clock3 } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowRight, Award, Check, ChevronDown, Clock3, Crown, FileText, Gauge, ListMusic, LoaderCircle, LogOut, Music2, RefreshCw, Save, ShieldCheck, Sparkles, Trophy, Users, Vote, X } from 'lucide-react';
 import './styles.css';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
-
-const seed = [
-  { name: 'Артист года', candidates: ['Артист1','Артист2','Артист3','Артист4','Артист5'] },
-  { name: 'Песня года', candidates: ['Артист1 — Название трека1','Артист2 — Название трека2','Артист3 — Название трека3','Артист4 — Название трека4','Артист5 — Название трека5'] },
-  { name: 'Открытие года', candidates: ['Исполнитель1','Исполнитель2','Исполнитель3','Исполнитель4','Исполнитель5'] },
-  { name: 'Альбом года', candidates: ['Артист1 — Название альбома1','Артист2 — Название альбома2','Артист3 — Название альбома3','Артист4 — Название альбома4','Артист5 — Название альбома5'] }
+const PHASES = [
+  { id: 'preparation', label: 'Подготовка' },
+  { id: 'candidates', label: 'Кандидаты' },
+  { id: 'voting', label: 'Голосование' },
+  { id: 'jury', label: 'Жюри' },
+  { id: 'awards', label: 'Награждение' }
 ];
-const phases = ['Подготовка','Кандидаты','Голосование','Жюри','Награждение'];
-const roleLabels = { admin: 'Администратор', jury: 'Жюри', observer: 'Наблюдатель', participant: 'Участник' };
+const ROLE_NAMES = { admin: 'Администратор', jury: 'Жюри', participant: 'Участник', observer: 'Наблюдатель' };
+const ADMIN_TABS = [
+  { id: 'nominations', label: 'Номинации', icon: ListMusic },
+  { id: 'candidates', label: 'Кандидаты & Топ-5', icon: Users },
+  { id: 'votes', label: 'Мониторинг голосов', icon: Activity },
+  { id: 'phases', label: 'Управление этапами', icon: Gauge },
+  { id: 'results', label: 'Результаты', icon: Trophy }
+];
+const DEADLINE = new Date('2026-12-07T00:00:00');
+
+async function request(path, initData, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(initData ? { 'X-Telegram-Init-Data': initData } : {}),
+      ...options.headers
+    }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Ошибка запроса');
+  return data;
+}
+
+function mapState(data) {
+  const source = data.nominations || [];
+  return {
+    slay: data.slay,
+    nominations: source.map(n => ({
+      id: n.id,
+      name: n.name,
+      candidates: (n.candidates || []).map(c => ({
+        id: c.id,
+        name: c.display_name,
+        count: Number(c.suggestion_count || 0),
+        top5: Boolean(c.is_top5)
+      }))
+    })),
+    myVotes: data.myVotes || [],
+    myScores: data.myScores || []
+  };
+}
 
 function App() {
-  const [phase,setPhase] = useState('Подготовка');
-  const [role,setRole] = useState('Гость');
-  const [telegramUser,setTelegramUser] = useState(null);
-  const [initData,setInitData] = useState('');
-  const [slayId,setSlayId] = useState(null);
-  const [phaseEndsAt,setPhaseEndsAt] = useState(null);
-  const [launchNow,setLaunchNow] = useState(Date.now());
-  const [phaseDurationHours,setPhaseDurationHours] = useState(24);
-  const [top5Selections,setTop5Selections] = useState({});
-  const [candidateCounts,setCandidateCounts] = useState({});
-  const [adminVotes,setAdminVotes] = useState([]);
-  const [isTransitioning,setIsTransitioning] = useState(false);
-  const [authStatus,setAuthStatus] = useState('Проверка Telegram…');
-  const [active,setActive] = useState(0);
-  const [nominations,setNominations] = useState(seed);
-  const [nominationDraft,setNominationDraft] = useState(seed.map(n=>({id:null,name:n.name})));
-  const [isSavingNominations,setIsSavingNominations] = useState(false);
-  const [votes,setVotes] = useState({});
-  const [suggestion,setSuggestion] = useState('');
-  const [scores,setScores] = useState({});
-  const [slideshow,setSlideshow] = useState(false);
-  const [slide,setSlide] = useState(0);
-  const [status,setStatus] = useState('Демо-данные');
-  const [results,setResults] = useState([]);
-  const current = nominations[active] || {name:'Нет номинаций',candidates:[]};
-  const winners = useMemo(()=>results.map(r=>({category:r.nomination,winner:r.winner?.candidate || 'Победитель не определён'})),[results]);
+  const [initData, setInitData] = useState('');
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState('');
+  const [auth, setAuth] = useState('Подключаем Telegram…');
+  const [phase, setPhase] = useState('preparation');
+  const [phaseEndsAt, setPhaseEndsAt] = useState(null);
+  const [nominations, setNominations] = useState([]);
+  const [draft, setDraft] = useState([]);
+  const [active, setActive] = useState(0);
+  const [suggestion, setSuggestion] = useState('');
+  const [votes, setVotes] = useState({});
+  const [scores, setScores] = useState({});
+  const [adminVotes, setAdminVotes] = useState([]);
+  const [results, setResults] = useState([]);
+  const [adminTab, setAdminTab] = useState('nominations');
+  const [duration, setDuration] = useState(24);
+  const [busy, setBusy] = useState('');
+  const [toast, setToast] = useState(null);
+  const [now, setNow] = useState(Date.now());
+  const [slide, setSlide] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const isAdmin = role === 'admin';
+  const current = nominations[active] || null;
+  const phaseLabel = PHASES.find(p => p.id === phase)?.label || 'Подготовка';
+  const winnerRows = useMemo(() => results.map(r => ({
+    category: r.nomination,
+    winner: r.winner?.candidate || 'Победитель не определён',
+    score: r.winner?.finalScore,
+    userVotes: r.winner?.userVotes,
+    juryVotes: r.winner?.juryVotesTotal
+  })), [results]);
+  const selectedVotes = current ? (votes[current.id] || []) : [];
+
+  const notify = useCallback((message, type = 'success') => {
+    setToast({ message, type });
+    window.clearTimeout(notify.timer);
+    notify.timer = window.setTimeout(() => setToast(null), 3400);
+  }, []);
+
+  const applyState = useCallback(data => {
+    const mapped = mapState(data);
+    setNominations(mapped.nominations);
+    setDraft(mapped.nominations.map(n => ({ id: n.id, name: n.name })));
+    if (mapped.slay) {
+      setPhase(mapped.slay.current_phase || 'preparation');
+      setPhaseEndsAt(mapped.slay.phase_ends_at || null);
+    }
+    setVotes(Object.fromEntries(mapped.nominations.map(n => [
+      n.id,
+      mapped.myVotes.filter(v => v.nomination_id === n.id)
+        .map(v => n.candidates.find(c => c.id === v.candidate_id)?.name).filter(Boolean)
+    ])));
+    setScores(Object.fromEntries(mapped.nominations.flatMap(n => mapped.myScores
+      .filter(v => v.nomination_id === n.id)
+      .map(v => [n.id + ':' + v.candidate_id, Number(v.score)]))));
+    setLastUpdated(Date.now());
+  }, []);
+
+  const refreshState = useCallback(async () => {
+    if (!initData) return;
+    const data = await request('/api/state', initData);
+    applyState(data);
+  }, [initData, applyState]);
+
+  const refreshResults = useCallback(async () => {
+    if (!initData) return;
+    const data = await request('/api/results', initData);
+    setResults(data.results || []);
+  }, [initData]);
+
+  const refreshVotes = useCallback(async () => {
+    if (!initData || !isAdmin) return;
+    const data = await request('/api/admin/votes', initData);
+    setAdminVotes(data.votes || []);
+  }, [initData, isAdmin]);
 
   useEffect(() => {
+    let cancelled = false;
     const tg = window.Telegram?.WebApp;
     if (!tg) {
-      setAuthStatus('Откройте приложение через Telegram');
+      setAuth('Откройте приложение внутри Telegram');
       return;
     }
     tg.ready();
     tg.expand();
-    try { tg.setHeaderColor('#050508'); tg.setBackgroundColor('#050508'); } catch (_) {}
-    const initData = tg.initData;
-    if (!initData) {
-      setAuthStatus('Telegram не передал данные авторизации');
+    try { tg.setHeaderColor('#090711'); tg.setBackgroundColor('#090711'); } catch (_) {}
+    if (!tg.initData) {
+      setAuth('Telegram не передал данные авторизации');
       return;
     }
-    fetch('/api/telegram/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData })
-    }).then(async response => {
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'auth_failed');
-      setTelegramUser(data.user);
-      setInitData(initData);
-      setRole(Object.prototype.hasOwnProperty.call(roleLabels, data.role) ? roleLabels[data.role] : 'Гость');
-      const stateResponse = await fetch('/api/state', { headers: { 'X-Telegram-Init-Data': initData } });
-      const serverState = await stateResponse.json();
-      if (!stateResponse.ok) throw new Error(serverState.error || 'state_load_failed');
-      if (serverState.slay) {
-        setSlayId(serverState.slay.id);
-        setPhaseEndsAt(serverState.slay.phase_ends_at);
-        const phaseLabels = { preparation: 'Подготовка', candidates: 'Кандидаты', voting: 'Голосование', jury: 'Жюри', awards: 'Награждение' };
-        setPhase(phaseLabels[serverState.slay.current_phase] || 'Подготовка');
-        const mappedNominations = serverState.nominations.map(n => ({ id: n.id, name: n.name, candidates: n.candidates.map(x => x.display_name), candidateIds: Object.fromEntries(n.candidates.map(x => [x.display_name, x.id])), top5: n.candidates.filter(x => x.is_top5).map(x => x.display_name) }));
-        setCandidateCounts(Object.fromEntries(serverState.nominations.flatMap(n => n.candidates.map(x => [`${n.id}:${x.display_name}`, Number(x.suggestion_count || 0)]))));
-        setNominations(mappedNominations);
-        setNominationDraft(mappedNominations.map(n => ({id:n.id,name:n.name})));
-        setTop5Selections(Object.fromEntries(serverState.nominations.map(n => [n.id, n.candidates.filter(x => x.is_top5).map(x => x.id)])));
-        setVotes(Object.fromEntries(serverState.nominations.map((n,i) => [i, (serverState.myVotes||[]).filter(v => v.nomination_id===n.id).map(v => n.candidates.find(x=>x.id===v.candidate_id)?.display_name).filter(Boolean)])));
-        setScores(Object.fromEntries(serverState.nominations.flatMap((n,i) => (serverState.myScores||[]).filter(v=>v.nomination_id===n.id).map(v=>[i+':'+(n.candidates.find(x=>x.id===v.candidate_id)?.display_name||''),v.score]))));
-        setStatus('Данные загружены из Supabase');
-        if (data.role === 'admin') { try { const voteResponse = await fetch('/api/admin/votes', { headers: { 'X-Telegram-Init-Data': initData } }); const voteData = await voteResponse.json(); if (voteResponse.ok) setAdminVotes(voteData.votes || []); } catch (_) {} }
-        try { await refreshResults(); } catch { /* results are unavailable until votes/jury data exist */ }
+    const data = tg.initData;
+    setInitData(data);
+    (async () => {
+      try {
+        const session = await request('/api/telegram/session', '', {
+          method: 'POST', body: JSON.stringify({ initData: data })
+        });
+        if (cancelled) return;
+        setUser(session.user || null);
+        setRole(ROLE_NAMES[session.role] ? session.role : '');
+        const state = await request('/api/state', data);
+        if (cancelled) return;
+        applyState(state);
+        setAuth('Сессия подтверждена');
+      } catch (error) {
+        if (!cancelled) {
+          setRole('');
+          setAuth(error.message || 'Не удалось авторизоваться');
+        }
       }
-      setAuthStatus('Telegram подтверждён');
-    }).catch(error => {
-      setRole('Гость');
-      const authErrors = {
-        telegram_not_configured: 'Не настроен токен Telegram-бота',
-        invalid_or_expired_telegram_init_data: 'Telegram отклонил данные: неверный токен бота, подпись или срок действия',
-        role_lookup_failed: 'Telegram подтверждён, но не удалось загрузить роль пользователя',
-        database_not_configured: 'Не настроено подключение к базе данных',
-        state_load_failed: 'Telegram подтверждён, но не удалось загрузить состояние приложения',
-        request_failed: 'Ошибка сервера при проверке Telegram'
-      };
-      setAuthStatus(authErrors[error.message] || `Ошибка авторизации: ${error.message || 'неизвестная ошибка'}`);
-    });
-  }, []);
-
+    })();
+    return () => { cancelled = true; };
+  }, [applyState]);
 
   useEffect(() => {
-    const timer = setInterval(() => setLaunchNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(()=>{
-    if(!slideshow)return;
-    const timer=setInterval(()=>setSlide(s=>(s+1)%Math.max(winners.length,1)),10000);
-    return ()=>clearInterval(timer);
-  },[slideshow,winners.length]);
-
-  const toggleVote = name => setVotes(v=>{const existing=v[active]||[];if(existing.includes(name))return {...v,[active]:existing.filter(x=>x!==name)};if(existing.length>=5){setStatus('Можно выбрать не более пяти кандидатов');return v;}return {...v,[active]:[...existing,name]};});
-  const addSuggestions = async () => {
-    const values=suggestion.split(',').map(x=>x.trim()).filter(Boolean);
-    if(!values.length || !current.id || !initData)return;
-    const response = await fetch('/api/submissions', { method:'POST', headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData}, body:JSON.stringify({nominationId:current.id,names:values}) });
-    const result = await response.json();
-    if(!response.ok){setStatus(result.error || 'Не удалось отправить предложения');return;}
-    const refreshed = await fetch('/api/state',{headers:{'X-Telegram-Init-Data':initData}}).then(r=>r.json());
-    setNominations(refreshed.nominations.map(n=>({id:n.id,name:n.name,candidates:n.candidates.map(x=>x.display_name),candidateIds:Object.fromEntries(n.candidates.map(x=>[x.display_name,x.id])),top5:n.candidates.filter(x=>x.is_top5).map(x=>x.display_name)})));
-    setSuggestion('');
-    setStatus('Предложения сохранены в Supabase');
-  };
-
-  const refreshResults = async () => {
-    const response = await fetch('/api/results',{headers:{'X-Telegram-Init-Data':initData}});
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'results_load_failed');
-    setResults(data.results || []);
-  };
-
-  const refreshAdminVotes = async () => {
-    if (role !== 'Администратор' || !initData) return;
-    try {
-      const response = await fetch('/api/admin/votes',{headers:{'X-Telegram-Init-Data':initData}});
-      const data = await response.json();
-      if (response.ok) setAdminVotes(data.votes || []);
-    } catch (_) {}
-  };
+  useEffect(() => {
+    if (!initData || !isAdmin) return;
+    refreshVotes().catch(() => {});
+    const timer = window.setInterval(() => refreshVotes().catch(() => {}), 2500);
+    return () => window.clearInterval(timer);
+  }, [initData, isAdmin, refreshVotes]);
 
   useEffect(() => {
-    if (role !== 'Администратор' || !initData) return;
-    refreshAdminVotes();
-    const timer = setInterval(refreshAdminVotes, 2000);
-    return () => clearInterval(timer);
-  }, [role, initData]);
+    if (!initData || phase !== 'awards') return;
+    refreshResults().catch(error => notify(error.message, 'error'));
+  }, [initData, phase, refreshResults, notify]);
 
-  const refreshServerState = async () => {
-    const response = await fetch('/api/state',{headers:{'X-Telegram-Init-Data':initData}});
-    const data = await response.json();
-    if (!response.ok || !data.slay) throw new Error(data.error || 'state_load_failed');
-    const phaseLabels = { preparation:'Подготовка', candidates:'Кандидаты', voting:'Голосование', jury:'Жюри', awards:'Награждение' };
-    setSlayId(data.slay.id);
-    setPhaseEndsAt(data.slay.phase_ends_at);
-    setPhase(phaseLabels[data.slay.current_phase] || 'Подготовка');
-    setNominations(data.nominations.map(n=>({id:n.id,name:n.name,candidates:n.candidates.map(x=>x.display_name),candidateIds:Object.fromEntries(n.candidates.map(x=>[x.display_name,x.id])),top5:n.candidates.filter(x=>x.is_top5).map(x=>x.display_name)})));
-    setNominationDraft(data.nominations.map(n => ({id:n.id,name:n.name})));
-    setTop5Selections(Object.fromEntries(data.nominations.map(n=>[n.id,n.candidates.filter(x=>x.is_top5).map(x=>x.id)])));
-    setVotes(Object.fromEntries(data.nominations.map((n,i)=>[i,(data.myVotes||[]).filter(v=>v.nomination_id===n.id).map(v=>n.candidates.find(x=>x.id===v.candidate_id)?.display_name).filter(Boolean)])));
-    setScores(Object.fromEntries(data.nominations.flatMap((n,i)=>(data.myScores||[]).filter(v=>v.nomination_id===n.id).map(v=>[i+':'+(n.candidates.find(x=>x.id===v.candidate_id)?.display_name||''),v.score]))));
-  };
-  const advancePhase = async nextPhase => {
-    if(isTransitioning)return;
-    if(!window.confirm('Подтвердить переход на следующий этап? Текущий этап будет закрыт.'))return;
-    setIsTransitioning(true);
+  useEffect(() => {
+    if (!initData || phase !== 'candidates') return;
+    const timer = window.setInterval(() => refreshState().catch(() => {}), 5000);
+    return () => window.clearInterval(timer);
+  }, [initData, phase, refreshState]);
+
+  useEffect(() => {
+    if (!playing || winnerRows.length < 2) return;
+    const timer = window.setInterval(() => setSlide(s => (s + 1) % winnerRows.length), 6500);
+    return () => window.clearInterval(timer);
+  }, [playing, winnerRows.length]);
+
+  useEffect(() => {
+    if (slide >= winnerRows.length) setSlide(0);
+  }, [slide, winnerRows.length]);
+
+  const runAction = async (key, action, successMessage) => {
+    if (busy) return;
+    setBusy(key);
     try {
-      const response = await fetch('/api/admin/phase',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:JSON.stringify({phase:nextPhase,durationSeconds:Number(phaseDurationHours)>0 ? Number(phaseDurationHours)*3600 : null})});
-      const result = await response.json();
-      if(!response.ok) throw new Error(result.error || 'phase_update_failed');
-      await refreshServerState();
-      setStatus('Этап переключён и записан в журнал');
-    } catch(error) { setStatus(error.message); }
-    finally { setIsTransitioning(false); }
-  };
-  const saveNominations = async () => {
-    const nominationsToSave = nominationDraft.map(item => ({...item,name:item.name.trim()})).filter(item => item.name);
-    const names = nominationsToSave.map(item => item.name);
-    if (!names.length || names.length > 20 || names.some(name => name.length < 2 || name.length > 100) || new Set(names.map(name => name.toLocaleLowerCase())).size !== names.length) {
-      setStatus('Укажите от 1 до 20 уникальных названий номинаций (2–100 символов)');
-      return;
+      await action();
+      if (successMessage) notify(successMessage);
+    } catch (error) {
+      notify(error.message || 'Операция не выполнена', 'error');
+    } finally {
+      setBusy('');
     }
-    setIsSavingNominations(true);
-    try {
-      const response = await fetch('/api/admin/nominations', {
+  };
+
+  const submitSuggestions = () => runAction('suggestions', async () => {
+    const names = [...new Set(suggestion.split(',').map(v => v.trim()).filter(Boolean))];
+    if (!current?.id || !names.length) throw new Error('Введите хотя бы одного кандидата');
+    await request('/api/submissions', initData, {
+      method: 'POST',
+      body: JSON.stringify({ nominationId: current.id, names })
+    });
+    setSuggestion('');
+    await refreshState();
+  }, 'Предложения отправлены');
+
+  const saveVote = () => runAction('vote', async () => {
+    if (!current?.id) throw new Error('Номинация не найдена');
+    const candidateIds = selectedVotes.map(name => current.candidates.find(c => c.name === name)?.id).filter(Boolean);
+    await request('/api/votes', initData, {
+      method: 'POST',
+      body: JSON.stringify({ nominationId: current.id, candidateIds })
+    });
+    await refreshState();
+  }, 'Голос сохранён');
+
+  const saveScore = (nomination, candidate, score) => {
+    const key = nomination.id + ':' + candidate.id;
+    setScores(prev => ({ ...prev, [key]: score }));
+    runAction('score:' + key, async () => {
+      await request('/api/jury-score', initData, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
-        body: JSON.stringify({ nominations: nominationsToSave })
+        body: JSON.stringify({ nominationId: nomination.id, candidateId: candidate.id, score })
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Не удалось сохранить номинации');
-      await refreshServerState();
-      setActive(0);
-      setStatus('Список номинаций сохранён');
-      return true;
-    } catch (error) { setStatus(error.message); return false; }
-    finally { setIsSavingNominations(false); }
+    }, 'Оценка сохранена');
   };
 
-  const saveTop5 = async nomination => {
-    const orderedCandidates = [...nomination.candidates].sort((a,b)=>(candidateCounts[nomination.id+':'+b]||0)-(candidateCounts[nomination.id+':'+a]||0));
-    const candidateIds = orderedCandidates.slice(0,5).map(name=>nomination.candidateIds?.[name]).filter(Boolean);
-    if(candidateIds.length!==5){setStatus('Для топ-5 нужны минимум пять кандидатов');return;}
-    const response = await fetch('/api/admin/top5',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:JSON.stringify({nominationId:nomination.id,candidateIds})});
-    const result = await response.json();
-    if(!response.ok){setStatus(result.error || 'Не удалось сохранить топ-5');return;}
-    await refreshServerState();
-    setStatus('Топ-5 по частоте предложений сохранён');
+  const saveNominations = () => runAction('nominations', async () => {
+    const clean = draft.map(n => ({ ...n, name: n.name.trim() })).filter(n => n.name);
+    const names = clean.map(n => n.name.toLocaleLowerCase());
+    if (!clean.length || clean.length > 20 || clean.some(n => n.name.length < 2 || n.name.length > 100) || new Set(names).size !== names.length) {
+      throw new Error('Нужно от 1 до 20 уникальных названий длиной 2–100 символов');
+    }
+    await request('/api/admin/nominations', initData, {
+      method: 'POST', body: JSON.stringify({ nominations: clean })
+    });
+    await refreshState();
+  }, 'Список номинаций сохранён');
+
+  const saveTop5 = nomination => runAction('top5:' + nomination.id, async () => {
+    const ids = [...nomination.candidates]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5).map(c => c.id).filter(Boolean);
+    if (ids.length !== 5) throw new Error('Для топ-5 нужны минимум пять кандидатов');
+    await request('/api/admin/top5', initData, {
+      method: 'POST', body: JSON.stringify({ nominationId: nomination.id, candidateIds: ids })
+    });
+    await refreshState();
+  }, 'Топ-5 сохранён по популярности предложений');
+
+  const changePhase = next => runAction('phase', async () => {
+    const label = PHASES.find(p => p.id === next)?.label || next;
+    if (!window.confirm('Перейти на этап «' + label + '»? Текущий этап будет закрыт.')) return;
+    await request('/api/admin/phase', initData, {
+      method: 'POST',
+      body: JSON.stringify({
+        phase: next,
+        durationSeconds: Number(duration) > 0 ? Number(duration) * 3600 : null
+      })
+    });
+    await refreshState();
+    if (next === 'awards') await refreshResults();
+  }, 'Этап обновлён');
+
+  const countdown = Math.max(0, DEADLINE.getTime() - now);
+  const parts = [
+    Math.floor(countdown / 86400000),
+    Math.floor((countdown % 86400000) / 3600000),
+    Math.floor((countdown % 3600000) / 60000),
+    Math.floor((countdown % 60000) / 1000)
+  ];
+  const phaseRemaining = phaseEndsAt ? Math.max(0, new Date(phaseEndsAt).getTime() - now) : null;
+
+  const changeVote = name => {
+    setVotes(prev => {
+      const existing = prev[current.id] || [];
+      if (existing.includes(name)) return { ...prev, [current.id]: existing.filter(x => x !== name) };
+      if (existing.length >= 5) {
+        notify('Можно выбрать не более пяти кандидатов', 'error');
+        return prev;
+      }
+      return { ...prev, [current.id]: [...existing, name] };
+    });
   };
 
-  return <main className="shell">
-    <header className="top"><div className="brand"><div className="logo-wrap"><img src="https://raw.githubusercontent.com/appsbypojos/Music-SLAY/main/file_0000000003c88246aacceec2fd0dc323.png" alt="MUSIC SLAY 2026" /></div><div><b>MUSIC SLAY</b><small>Музыкальная премия · 2026</small></div></div></header>
-    <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span><span className="pill"><span className="dot"/> {authStatus}</span></section>
-    <section className="launch-countdown compact panel" aria-label="Обратный отсчёт до 7 декабря 2026">
-      <div className="launch-timer">
-        {(() => {
-          const remaining = Math.max(0, new Date(2026, 11, 7, 0, 0, 0).getTime() - launchNow);
-          const days = Math.floor(remaining / 86400000);
-          const hours = Math.floor((remaining % 86400000) / 3600000);
-          const minutes = Math.floor((remaining % 3600000) / 60000);
-          const seconds = Math.floor((remaining % 60000) / 1000);
-          return <><span><b>{days}</b><small>дней</small></span><span><b>{String(hours).padStart(2, '0')}</b><small>часов</small></span><span><b>{String(minutes).padStart(2, '0')}</b><small>минут</small></span><span><b>{String(seconds).padStart(2, '0')}</b><small>секунд</small></span></>;
-        })()}
+  const moveNomination = delta => setActive(index => Math.min(Math.max(index + delta, 0), Math.max(nominations.length - 1, 0)));
+
+  const renderNominationNav = () => (
+    <div className="nomination-switch">
+      <button className="icon-button" onClick={() => moveNomination(-1)} disabled={active === 0} aria-label="Предыдущая номинация"><ArrowLeft size={17}/></button>
+      <div className="switch-center">
+        <span className="switch-count">{String(active + 1).padStart(2, '0')} <i>/ {String(nominations.length).padStart(2, '0')}</i></span>
+        <div className="switch-progress"><span style={{ width: nominations.length ? ((active + 1) / nominations.length * 100) + '%' : '0%' }}/></div>
       </div>
-      {role==='Участник' && phase==='Подготовка' && <div className="waiting-panel"><p className="hint">Сейчас идёт подготовка премии. Когда администратор откроет сбор кандидатов, здесь появится доступ к участию.</p></div>}
+      <button className="icon-button" onClick={() => moveNomination(1)} disabled={active >= nominations.length - 1} aria-label="Следующая номинация"><ArrowRight size={17}/></button>
+    </div>
+  );
+
+  const renderCountdown = () => (
+    <div className="countdown-grid">
+      {parts.map((value, index) => <div className="countdown-cell" key={index}><strong>{String(value).padStart(index ? 2 : 1, '0')}</strong><span>{['дней', 'часов', 'минут', 'секунд'][index]}</span></div>)}
+    </div>
+  );
+
+  const renderAwards = () => (
+    <section className="stage-card awards-stage">
+      <div className="stage-kicker"><span className="live-dot"/> ЦЕРЕМОНИЯ · MUSIC SLAY 2026</div>
+      {winnerRows.length ? <>
+        <div className="award-visual" key={slide}>
+          <div className="award-orbit"><div className="award-cup"><Trophy size={42}/></div></div>
+          <span className="award-label">ПОБЕДИТЕЛЬ НОМИНАЦИИ</span>
+          <h2>{winnerRows[slide]?.category}</h2>
+          <h1>{winnerRows[slide]?.winner}</h1>
+          <div className="winner-stats">
+            <span>Итог <b>{winnerRows[slide]?.score ?? '—'}</b></span>
+            <span>Голоса <b>{winnerRows[slide]?.userVotes ?? '—'}</b></span>
+            <span>Жюри <b>{winnerRows[slide]?.juryVotes ?? '—'}</b></span>
+          </div>
+        </div>
+        <div className="slide-controls">
+          <button className="icon-button" onClick={() => setSlide(s => (s - 1 + winnerRows.length) % winnerRows.length)} aria-label="Предыдущий победитель"><ArrowLeft/></button>
+          <div className="slide-dots">{winnerRows.map((row, i) => <button key={row.category} className={i === slide ? 'active' : ''} onClick={() => setSlide(i)} aria-label={'Показать ' + row.category}/>)}</div>
+          <button className="icon-button" onClick={() => setSlide(s => (s + 1) % winnerRows.length)} aria-label="Следующий победитель"><ArrowRight/></button>
+          <button className="play-button" onClick={() => setPlaying(v => !v)}>{playing ? 'Пауза' : 'Слайдшоу'}</button>
+        </div>
+      </> : <div className="empty-state"><Trophy size={34}/><h3>Результаты пока не готовы</h3><p>Когда сервер рассчитает победителей, они появятся здесь.</p><button onClick={() => runAction('results', refreshResults, 'Результаты обновлены')}><RefreshCw size={15}/> Обновить</button></div>}
     </section>
-    
-    
-    {role==='Гость' && <section className="panel waiting-panel"><span className="eyebrow">MUSIC SLAY 2026</span><h2>Премия готовится</h2><p className="hint">Доступ к текущему этапу откроется после запуска. Откройте Mini App позже, чтобы участвовать.</p></section>}
+  );
 
-    {role==='Администратор' && phase==='Подготовка' && <section className="panel" data-phase="Подготовка"><div className="sectionhead"><div><span className="eyebrow">START HERE</span><h2>Подготовка Slay</h2></div><ShieldCheck/></div><label>Название выпуска</label><input defaultValue="MUSIC SLAY 2026" disabled/><h3>Редактировать номинации</h3><p className="hint">Добавляйте, переименовывайте или удаляйте номинации до запуска сбора кандидатов.</p>{nominationDraft.map((item,i)=><div className="nomination-editor" key={item.id || `new-${i}`}><input aria-label={`Название номинации ${i+1}`} value={item.name} maxLength={100} onChange={e=>setNominationDraft(list=>list.map((entry,index)=>index===i?{...entry,name:e.target.value}:entry))}/><button type="button" className="remove-nomination" onClick={()=>setNominationDraft(list=>list.filter((_,index)=>index!==i))} aria-label="Удалить номинацию">Удалить</button></div>)}<div className="admin-controls"><button type="button" onClick={()=>setNominationDraft(list=>list.length<20?[...list,{id:null,name:'Новая номинация'}]:list)} disabled={nominationDraft.length>=20}>Добавить номинацию</button><button className="primary" disabled={isSavingNominations || isTransitioning} onClick={saveNominations}>{isSavingNominations?'Сохранение…':'Сохранить список номинаций'}</button></div><p className="hint">Изменения сохраняются в базе и доступны всем участникам.</p><div className="admin-controls"><button className="primary" disabled={isTransitioning || isSavingNominations || !nominationDraft.some(n=>n.name.trim())} onClick={async()=>{if(await saveNominations()) advancePhase('candidates')}}>Начать премию досрочно · открыть сбор кандидатов</button><p className="hint">Запуск сразу откроет этап предложений, не дожидаясь даты на таймере.</p></div></section>}
-    \n    {role!=='Гость' && phase==='Кандидаты' && <section className="panel" data-phase="Кандидаты"><div className="sectionhead"><div><span className="eyebrow">NOMINATIONS</span><h2>Предложить кандидатов</h2></div><Music2/></div><div className="nomination-nav"><button type="button" disabled={active===0} onClick={()=>setActive(i=>Math.max(0,i-1))}>Назад</button><span>{active+1} / {nominations.length}</span><button type="button" disabled={active>=nominations.length-1} onClick={()=>setActive(i=>Math.min(nominations.length-1,i+1))}>Далее</button></div>{role==='Участник' && <><h3>{current.name}</h3><textarea value={suggestion} onChange={e=>setSuggestion(e.target.value)} placeholder={active===1?'Артист1 — Название трека1, Артист2 — Название трека2':'Артист1, Артист2, Исполнитель3'} /><button className="primary" onClick={addSuggestions}>Отправить предложения <ChevronRight size={17}/></button></>}{role==='Администратор' && <><div className="admin-database"><div className="sectionhead"><div><span className="eyebrow">database</span><h3>База голосов</h3><p className="hint">Доступно только администраторам · обновление каждые 2 секунды.</p></div></div><div className="vote-table-wrap"><table className="vote-table"><tbody>{nominations.map(n=>{const rows=adminVotes.filter(v=>v.nomination_id===n.id);return <React.Fragment key={n.id}><tr className="vote-group-title"><th colSpan="3">{n.name}</th></tr>{rows.length?rows.map(v=><tr key={v.id}><td>{v.voter}</td><td>{v.candidate} ({v.vote_count} голосов)</td><td>{new Date(v.created_at).toLocaleString('ru-RU')}</td></tr>):<tr><td colSpan="3">Голосов пока нет</td></tr>}</React.Fragment>})}</tbody></table></div></div><div className="admin-controls"><button className="primary" onClick={()=>saveTop5(current)}>Сохранить топ-5 автоматически</button><button disabled={isTransitioning} onClick={()=>advancePhase('voting')}>Перейти к голосованию</button></div></>}</section>}
+  const renderAdmin = () => (
+    <div className="admin-layout">
+      <aside className="admin-sidebar">
+        <div className="admin-side-title"><ShieldCheck size={18}/><span>CONTROL ROOM</span></div>
+        {ADMIN_TABS.map(tab => {
+          const Icon = tab.icon;
+          return <button key={tab.id} className={adminTab === tab.id ? 'admin-tab active' : 'admin-tab'} onClick={() => setAdminTab(tab.id)}><Icon size={17}/><span>{tab.label}</span><ChevronDown size={14}/></button>;
+        })}
+        <div className="sidebar-phase"><span>ТЕКУЩИЙ ЭТАП</span><b>{phaseLabel}</b><small>{phaseRemaining === null ? 'Длительность не задана' : phaseRemaining > 0 ? 'Осталось ' + Math.floor(phaseRemaining / 3600000) + ' ч ' + Math.floor((phaseRemaining % 3600000) / 60000) + ' мин' : 'Время этапа истекло'}</small></div>
+      </aside>
+      <div className="admin-content">
+        {adminTab === 'nominations' && <section className="admin-panel">
+          <PanelHeading eyebrow="CONFIGURATION" title="Номинации" detail="Управляйте структурой премии до и во время подготовки." icon={<ListMusic/>}/>
+          {draft.map((item, index) => <div className="nomination-editor" key={item.id || 'new-' + index}>
+            <span className="editor-index">{String(index + 1).padStart(2, '0')}</span>
+            <input value={item.name} maxLength={100} onChange={e => setDraft(list => list.map((n, i) => i === index ? { ...n, name: e.target.value } : n))}/>
+            <button className="icon-button danger" onClick={() => setDraft(list => list.filter((_, i) => i !== index))} aria-label="Удалить номинацию"><X size={17}/></button>
+          </div>)}
+          <div className="button-row">
+            <button onClick={() => setDraft(list => list.length < 20 ? [...list, { id: null, name: 'Новая номинация' }] : list)} disabled={draft.length >= 20}>+ Добавить номинацию</button>
+            <button className="button-primary" onClick={saveNominations} disabled={Boolean(busy)}><Save size={16}/> {busy === 'nominations' ? 'Сохранение…' : 'Сохранить изменения'}</button>
+          </div>
+        </section>}
 
-    {role!=='Гость' && phase==='Голосование' && <section className="panel" data-phase="Голосование"><div className="sectionhead"><div><span className="eyebrow">YOUR CHOICE</span><h2>Голосование</h2></div><Check/></div><div className="nomination-nav"><button type="button" disabled={active===0} onClick={()=>setActive(i=>Math.max(0,i-1))}>Назад</button><span>{active+1} / {nominations.length}</span><button type="button" disabled={active>=nominations.length-1} onClick={()=>setActive(i=>Math.min(nominations.length-1,i+1))}>Далее</button></div><div className="tabs">{nominations.map((n,i)=><button className={active===i?'tab selected':'tab'} onClick={()=>setActive(i)} key={n.name}>{n.name}</button>)}</div><h3>{current.name}</h3><p className="hint">Топ-5 этой номинации. Списки и голоса не смешиваются.</p>{(current.top5 || []).map((c,i)=><button disabled={role!=='Участник'} className={'vote '+((votes[active]||[]).includes(c)?'chosen':'')} onClick={()=>toggleVote(c)} key={c}><span className="rank">{i+1}</span><span>{c}</span><span className="check">{(votes[active]||[]).includes(c)?'✓':'+'}</span></button>)}<button className="primary" disabled={role!=='Участник' || !current.id || !initData} onClick={async()=>{const candidateIds=(votes[active]||[]).map(name=>current.candidateIds?.[name]).filter(Boolean);const response=await fetch('/api/votes',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:JSON.stringify({nominationId:current.id,candidateIds})});const result=await response.json();setStatus(response.ok?'Голос сохранён в Supabase':(result.error||'Ошибка сохранения голоса'));}}>Подтвердить выбор</button>{role==='Администратор' && <div className="admin-controls"><label>Длительность этапа жюри (часы)</label><input type="number" min="0" max="720" value={phaseDurationHours} onChange={e=>setPhaseDurationHours(e.target.value)}/><button disabled={isTransitioning} onClick={()=>advancePhase('jury')}>Завершить голосование и открыть жюри</button></div>}</section>}
-    {role!=='Гость' && phase==='Жюри' && <section className="panel" data-phase="Жюри"><div className="sectionhead"><div><span className="eyebrow">JURY SCORE</span><h2>Оценивание жюри</h2></div><Trophy/></div><div className="nomination-nav"><button type="button" disabled={active===0} onClick={()=>setActive(i=>Math.max(0,i-1))}>Назад</button><span>{active+1} / {nominations.length}</span><button type="button" disabled={active>=nominations.length-1} onClick={()=>setActive(i=>Math.min(nominations.length-1,i+1))}>Далее</button></div><div className="tabs">{nominations.map((n,i)=><button className={active===i?'tab selected':'tab'} onClick={()=>setActive(i)} key={n.name}>{n.name}</button>)}</div>{(current.top5?.length ? current.top5 : current.candidates.slice(0,5)).map(c=><div className="score" key={c}><span>{c}</span><select disabled={role!=='Жюри' || !current.id || !initData} value={scores[active+':'+c]??0} onChange={async e=>{const score=Number(e.target.value);setScores(s=>({...s,[active+':'+c]:score}));const response=await fetch('/api/jury-score',{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:JSON.stringify({nominationId:current.id,candidateId:current.candidateIds?.[c],score})});if(!response.ok)setStatus('Не удалось сохранить оценку жюри');else setStatus('Оценка сохранена в Supabase');}}>{Array.from({length:11},(_,i)=><option key={i} value={i}>{i}/10</option>)}</select></div>)}<p className="hint">Итог: голоса пользователей + сумма отдельных голосов жюри. Каждый балл жюри добавляет 10% от голосов пользователей.</p>{role==='Администратор' && <div className="admin-controls"><label>Длительность награждения (часы)</label><input type="number" min="0" max="720" value={phaseDurationHours} onChange={e=>setPhaseDurationHours(e.target.value)}/><button disabled={isTransitioning} onClick={()=>advancePhase('awards')}>Завершить оценки и открыть награждение</button></div>}</section>}
-    {role!=='Гость' && phase==='Награждение' && <section className="panel" data-phase="Награждение"><div className="sectionhead"><div><span className="eyebrow">THE WINNERS</span><h2>Церемония награждения</h2></div><Trophy/></div><div className="award"><span className="eyebrow">ПОБЕДИТЕЛЬ · {slide+1}/{winners.length}</span><Trophy size={42}/><h2>{winners[slide]?.category}</h2><h1>{winners[slide]?.winner}</h1><p className="hint">{results[slide]?.winner ? `Итог: ${results[slide].winner.finalScore} · пользователей: ${results[slide].winner.userVotes} · жюри: ${results[slide].winner.juryVotesTotal}` : 'Результаты пока не рассчитаны'}</p></div><div className="actions"><button onClick={()=>setSlide(s=>Math.max(0,s-1))}>Назад</button><button className="primary" onClick={()=>setSlideshow(s=>!s)}>{slideshow?'Пауза':'Запустить слайдшоу'}</button><button onClick={()=>setSlide(s=>(s+1)%winners.length)}>Далее</button></div><p className="hint">Результаты рассчитываются сервером по утверждённой формуле. Для каждого члена жюри расчёт выполняется отдельно.</p></section>}
-    <footer className="site-footer"><Clock3 size={15}/> <span>MUSIC SLAY 2026 · прототип с Telegram SDK</span><span className="footer-sponsor">Спонсор: <a href="https://t.me/NexoraAudio" target="_blank" rel="noreferrer">Nexora Audio</a></span></footer>
+        {adminTab === 'candidates' && <section className="admin-panel">
+          <PanelHeading eyebrow="CANDIDATE MANAGEMENT" title="Кандидаты & Топ-5" detail="Популярность рассчитана по числу предложений участников." icon={<Users/>}/>
+          {nominations.map(n => <div className="admin-nomination" key={n.id}>
+            <div className="admin-nomination-head"><div><span className="eyebrow">НОМИНАЦИЯ</span><h3>{n.name}</h3><p>{n.candidates.length} кандидатов</p></div><button className="button-primary compact-button" onClick={() => saveTop5(n)} disabled={Boolean(busy) || n.candidates.length < 5}><Sparkles size={15}/> Авто Топ-5</button></div>
+            {n.candidates.length ? [...n.candidates].sort((a, b) => b.count - a.count).map((c, i) => <div className="candidate-admin-row" key={c.id}><span className="candidate-position">{i + 1}</span><span className="candidate-admin-name">{c.name}</span><div className="popularity"><span style={{ width: (Math.max(...n.candidates.map(x => x.count), 1) ? c.count / Math.max(...n.candidates.map(x => x.count), 1) * 100 : 0) + '%' }}/></div><b>{c.count}</b>{c.top5 && <span className="top5-tag">TOP 5</span>}</div>) : <p className="empty-inline">Пока никто не предложен.</p>}
+          </div>)}
+        </section>}
+
+        {adminTab === 'votes' && <section className="admin-panel">
+          <PanelHeading eyebrow="LIVE MONITOR" title="Мониторинг голосов" detail="Автоматическое обновление каждые 2,5 секунды." icon={<Activity/>}/>
+          <div className="monitor-meta"><span className="live-dot"/> LIVE <span>Записей: {adminVotes.length}</span><span>Обновлено: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString('ru-RU') : '—'}</span><button className="icon-button" onClick={() => refreshVotes().catch(e => notify(e.message, 'error'))}><RefreshCw size={15}/></button></div>
+          <div className="table-scroll"><table className="audit-table"><thead><tr><th>Номинация</th><th>Telegram ID</th><th>Кандидат</th><th>Голосов</th><th>Время</th></tr></thead><tbody>
+            {adminVotes.length ? adminVotes.map((v, i) => <tr key={v.id || i}><td>{v.nomination || nominations.find(n => n.id === v.nomination_id)?.name || '—'}</td><td>{v.voter || '—'}</td><td>{v.candidate || '—'}</td><td>{v.vote_count ?? '—'}</td><td>{v.created_at ? new Date(v.created_at).toLocaleString('ru-RU') : '—'}</td></tr>) : <tr><td colSpan="5" className="table-empty">Голосов пока нет</td></tr>}
+          </tbody></table></div>
+          <p className="microcopy">Данные отображаются в том виде, в котором их возвращает API аудита.</p>
+        </section>}
+
+        {adminTab === 'phases' && <section className="admin-panel">
+          <PanelHeading eyebrow="PHASE CONTROL" title="Управление этапами" detail="Переход закрывает текущий этап и обновляет состояние для всех участников." icon={<Gauge/>}/>
+          <div className="phase-current"><span>СЕЙЧАС</span><strong>{phaseLabel}</strong><small>{phaseEndsAt ? 'Завершение: ' + new Date(phaseEndsAt).toLocaleString('ru-RU') : 'Срок не установлен'}</small></div>
+          <label className="field-label" htmlFor="phase-duration">Длительность следующего этапа</label>
+          <div className="duration-input"><input id="phase-duration" type="number" min="0" max="720" value={duration} onChange={e => setDuration(e.target.value)}/><span>часов · 0 — без таймера</span></div>
+          <div className="phase-control-list">{PHASES.map((p, i) => <div className={phase === p.id ? 'phase-control-row current' : 'phase-control-row'} key={p.id}><div className="phase-number">{String(i + 1).padStart(2, '0')}</div><div><b>{p.label}</b><small>{phase === p.id ? 'Текущий этап' : 'Переключить на этот этап'}</small></div><button disabled={phase === p.id || Boolean(busy)} onClick={() => changePhase(p.id)}>{phase === p.id ? <Check size={16}/> : 'Перейти'}</button></div>)}</div>
+        </section>}
+
+        {adminTab === 'results' && <section className="admin-panel">
+          <PanelHeading eyebrow="FINAL RESULTS" title="Результаты" detail="Итоговые данные загружаются из /api/results." icon={<Trophy/>}/>
+          <div className="button-row right"><button onClick={() => runAction('results', refreshResults, 'Результаты обновлены')} disabled={Boolean(busy)}><RefreshCw size={15}/> Обновить</button></div>
+          {winnerRows.length ? winnerRows.map((row, i) => <div className="result-row" key={row.category}><span>{String(i + 1).padStart(2, '0')}</span><div><small>{row.category}</small><b>{row.winner}</b></div><strong>{row.score ?? '—'}</strong></div>) : <div className="empty-state"><Trophy/><p>Сервер пока не вернул результаты.</p></div>}
+        </section>}
+      </div>
+    </div>
+  );
+
+  if (isAdmin) return <main className="app-shell admin-shell">
+    <header className="app-header"><div className="brand-lockup"><div className="brand-mark"><Music2/></div><div><b>MUSIC SLAY <em>2026</em></b><span>ADMINISTRATION CONSOLE</span></div></div><div className="header-user"><span className="admin-avatar"><ShieldCheck size={17}/></span><div><b>{user?.firstName || 'Admin'}</b><small>Администратор</small></div></div></header>
+    <div className="admin-welcome"><div><span className="eyebrow">CONTROL CENTER / OVERVIEW</span><h1>Панель управления</h1><p>Полный контроль над этапами, номинациями и голосованием.</p></div><div className="admin-live"><span className="live-dot"/> SYSTEM ONLINE</div></div>
+    <div className="admin-status-strip"><div><span>ТЕКУЩИЙ ЭТАП</span><b>{phaseLabel}</b></div><div><span>НОМИНАЦИЙ</span><b>{nominations.length}</b></div><div><span>ГОЛОСОВ</span><b>{adminVotes.length}</b></div><div><span>РОЛЬ</span><b>ADMIN</b></div></div>
+    {renderAdmin()}
+    <footer className="app-footer">MUSIC SLAY 2026 <span>·</span> ADMIN CONSOLE <span className="footer-auth">{auth}</span></footer>
+    {toast && <div className={'toast ' + toast.type}><span>{toast.type === 'error' ? <X size={17}/> : <Check size={17}/>}</span>{toast.message}</div>}
+  </main>;
+
+  return <main className="app-shell">
+    <header className="app-header"><div className="brand-lockup"><div className="brand-mark"><Music2/></div><div><b>MUSIC SLAY <em>2026</em></b><span>МУЗЫКАЛЬНАЯ ПРЕМИЯ</span></div></div><div className="header-user"><span className="user-avatar"><Users size={16}/></span><div><b>{user?.firstName || 'Гость'}</b><small>{ROLE_NAMES[role] || 'Нет доступа'}</small></div></div></header>
+    <section className="hero-banner"><div className="hero-copy"><span className="eyebrow">THE SOUND OF 2026</span><h1>Твоя музыка.<br/><span>Твой выбор.</span></h1><p>Определяем главные имена и релизы года вместе.</p></div><div className="hero-art"><div className="hero-disc"><div className="disc-core"><Music2 size={30}/></div></div><div className="hero-star"><Sparkles size={19}/></div></div></section>
+    <section className="phase-overview"><div className="phase-overview-head"><div><span className="eyebrow">ПУТЬ ПРЕМИИ</span><h2>{phaseLabel}</h2></div><span className="phase-status"><i/> LIVE STAGE</span></div><div className="phase-track">{PHASES.map((p, i) => <div key={p.id} className={'phase-step ' + (phase === p.id ? 'active' : PHASES.findIndex(x => x.id === phase) > i ? 'complete' : '')}><span>{PHASES.findIndex(x => x.id === phase) > i ? <Check size={12}/> : String(i + 1)}</span><small>{p.label}</small></div>)}</div>{phaseRemaining !== null && <div className="phase-deadline"><Clock3 size={14}/> {phaseRemaining > 0 ? 'До завершения этапа: ' + Math.floor(phaseRemaining / 3600000) + ' ч ' + Math.floor((phaseRemaining % 3600000) / 60000) + ' мин' : 'Срок этапа истёк'}</div>}</section>
+
+    {!role && <section className="stage-card waiting-stage"><div className="waiting-icon"><ShieldCheck size={30}/></div><span className="eyebrow">TELEGRAM ACCESS</span><h2>Подключение к премии</h2><p>{auth}</p><div className="loader-line"><span/></div></section>}
+
+    {role && phase === 'preparation' && <section className="stage-card waiting-stage"><div className="waiting-icon"><Clock3 size={30}/></div><span className="eyebrow">COUNTDOWN TO THE SHOW</span><h2>Скоро начнём</h2><p>Идёт подготовка MUSIC SLAY 2026. Сбор кандидатов откроется после старта этапа.</p>{renderCountdown()}<div className="deadline-note">СТАРТ ЦЕРЕМОНИИ · 07 ДЕКАБРЯ 2026</div></section>}
+
+    {role && phase === 'candidates' && <section className="stage-card"><StageHeading eyebrow="NOMINATION SUBMISSIONS" title="Кого номинируем?" detail="Предложи одного или нескольких кандидатов через запятую." icon={<Music2/>}/>{renderNominationNav()}{current && <><div className="current-nomination"><span>ТЕКУЩАЯ НОМИНАЦИЯ</span><h2>{current.name}</h2><div className="candidate-summary"><b>{current.candidates.length}</b><span>уже предложено</span></div></div>{role === 'participant' ? <><label className="field-label" htmlFor="candidate-input">Твои предложения</label><textarea id="candidate-input" value={suggestion} onChange={e => setSuggestion(e.target.value)} placeholder="Например: артист, артист — трек, альбом…"/><div className="form-footnote">Несколько вариантов можно разделить запятой.</div><button className="button-primary full-button" onClick={submitSuggestions} disabled={Boolean(busy) || !suggestion.trim()}>{busy === 'suggestions' ? <LoaderCircle className="spin"/> : <Sparkles size={17}/>} Отправить предложения</button></> : <div className="notice-card"><ShieldCheck size={18}/><p>{role === 'observer' ? 'Режим наблюдателя: просмотр без отправки предложений.' : 'Предложения доступны участникам.'}</p></div>}<div className="suggestion-list"><h3>Уже в списке</h3>{current.candidates.length ? current.candidates.slice().sort((a, b) => b.count - a.count).map(c => <div className="suggestion-item" key={c.id}><span>{c.name}</span><b>{c.count}</b></div>) : <div className="empty-inline">Список пока пуст. Стань первым, кто предложит кандидата.</div>}</div></>}</section>}
+
+    {role && phase === 'voting' && <section className="stage-card"><StageHeading eyebrow="COMMUNITY VOTE" title="Выбирай лучших" detail="Отметь до пяти кандидатов в каждой номинации." icon={<Vote/>}/>{renderNominationNav()}{current && <><div className="current-nomination"><span>НОМИНАЦИЯ</span><h2>{current.name}</h2></div><div className="selection-meter"><div><b>Выбрано {selectedVotes.length}/5</b><span>Можно отметить до пяти</span></div><div className="meter-track"><span style={{ width: selectedVotes.length * 20 + '%' }}/></div></div><div className="vote-cards">{current.candidates.filter(c => c.top5).map((c, i) => { const selected = selectedVotes.includes(c.name); return <button type="button" key={c.id} className={'vote-card ' + (selected ? 'selected' : '')} onClick={() => role === 'participant' && changeVote(c.name)} disabled={role !== 'participant'}><span className="vote-rank">{String(i + 1).padStart(2, '0')}</span><span className="vote-name">{c.name}</span><span className="vote-check">{selected ? <Check size={17}/> : '+'}</span></button>; })}</div>{current.candidates.filter(c => c.top5).length === 0 && <div className="empty-inline">Топ-5 для этой номинации ещё не опубликован.</div>}{role === 'participant' ? <button className="button-primary full-button" onClick={saveVote} disabled={Boolean(busy) || !current.candidates.some(c => c.top5)}>{busy === 'vote' ? <LoaderCircle className="spin"/> : <Vote size={17}/>} Подтвердить голос</button> : <div className="notice-card"><ShieldCheck size={18}/><p>{role === 'observer' ? 'Вы можете наблюдать за голосованием, но не голосовать.' : 'Голосование доступно участникам.'}</p></div>}</>}</section>}
+
+    {role && phase === 'jury' && <section className="stage-card"><StageHeading eyebrow="JURY ROOM" title="Оценка жюри" detail="Выставляй оценки от 0 до 10. Каждая оценка сохраняется сразу." icon={<Award/>}/>{renderNominationNav()}{current && <><div className="current-nomination"><span>НОМИНАЦИЯ</span><h2>{current.name}</h2></div>{(current.candidates.filter(c => c.top5).length ? current.candidates.filter(c => c.top5) : current.candidates.slice(0, 5)).map((c, i) => <div className="jury-score-row" key={c.id}><div className="jury-candidate"><span>{String(i + 1).padStart(2, '0')}</span><b>{c.name}</b></div><select aria-label={'Оценка ' + c.name} disabled={role !== 'jury' || Boolean(busy)} value={scores[current.id + ':' + c.id] ?? 0} onChange={e => saveScore(current, c, Number(e.target.value))}>{Array.from({ length: 11 }, (_, score) => <option key={score} value={score}>{score} / 10</option>)}</select></div>)}{role !== 'jury' && <div className="notice-card"><ShieldCheck size={18}/><p>Оценивание доступно только членам жюри.</p></div>}</>}</section>}
+
+    {role && phase === 'awards' && renderAwards()}
+    <footer className="app-footer">MUSIC SLAY 2026 <span>·</span> MADE FOR THE SOUND <span className="footer-auth">{auth}</span></footer>
+    {toast && <div className={'toast ' + toast.type}><span>{toast.type === 'error' ? <X size={17}/> : <Check size={17}/>}</span>{toast.message}</div>}
   </main>;
 }
+
+function StageHeading({ eyebrow, title, detail, icon }) {
+  return <div className="stage-heading"><div><span className="eyebrow">{eyebrow}</span><h2>{title}</h2><p>{detail}</p></div><div className="heading-icon">{icon}</div></div>;
+}
+function PanelHeading({ eyebrow, title, detail, icon }) {
+  return <div className="admin-panel-heading"><div><span className="eyebrow">{eyebrow}</span><h2>{title}</h2><p>{detail}</p></div><div className="heading-icon">{icon}</div></div>;
+}
+
 createRoot(document.getElementById('root')).render(<App/>);
