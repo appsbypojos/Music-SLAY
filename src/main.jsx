@@ -194,6 +194,30 @@ function App() {
   }, [initData, phase, refreshState]);
 
   useEffect(() => {
+    if (!isAdmin || phase !== 'candidates' || !initData || !nominations.length) return;
+    let cancelled = false;
+    const syncTop5 = async () => {
+      for (const nomination of nominations) {
+        if (cancelled) return;
+        const ranked = [...nomination.candidates].sort((a, b) => b.count - a.count).slice(0, 5);
+        if (ranked.length !== 5) continue;
+        const desired = ranked.map(candidate => candidate.id).sort();
+        const existing = nomination.candidates.filter(candidate => candidate.top5).map(candidate => candidate.id).sort();
+        if (desired.length === existing.length && desired.every((id, index) => id === existing[index])) continue;
+        try {
+          await request('/api/admin/top5', initData, {
+            method: 'POST',
+            body: JSON.stringify({ nominationId: nomination.id, candidateIds: ranked.map(candidate => candidate.id) })
+          });
+        } catch (_) { /* manual admin action remains available if auto-sync is rejected */ }
+      }
+      if (!cancelled) refreshState().catch(() => {});
+    };
+    syncTop5();
+    return () => { cancelled = true; };
+  }, [isAdmin, phase, initData, nominations, refreshState]);
+
+  useEffect(() => {
     if (!playing || winnerRows.length < 2) return;
     const timer = window.setInterval(() => setSlide(s => (s + 1) % winnerRows.length), 6500);
     return () => window.clearInterval(timer);
