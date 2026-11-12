@@ -765,3 +765,47 @@ footer {
   .brand b { font-size: 13px; letter-spacing: 1.5px; }
   .award { padding: 28px 8px 20px; }
 }
+
+
+/* Guest waiting screen countdown */
+.guest-panel {
+  min-height: 340px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+.guest-countdown {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 8px;
+}
+.guest-clock {
+  width: 34px;
+  height: 34px;
+  color: var(--purple-bright);
+  margin: 4px 0 16px;
+  filter: drop-shadow(0 0 12px var(--purple-glow));
+}
+.guest-countdown h2 {
+  font-family: var(--display);
+  font-size: clamp(20px, 4vw, 28px);
+  margin-bottom: 16px;
+}
+.guest-timer {
+  display: block;
+  font-family: var(--display);
+  font-size: clamp(25px, 7vw, 48px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  line-height: 1.25;
+  color: var(--purple-bright);
+  text-shadow: 0 0 24px var(--purple-glow);
+  font-variant-numeric: tabular-nums;
+}
+.guest-countdown .hint {
+  max-width: 440px;
+  margin: 18px auto 0;
+}
