@@ -809,3 +809,116 @@ footer {
   max-width: 440px;
   margin: 18px auto 0;
 }
+
+
+/* Refined app header and launch countdown */
+.top {
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.brand {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.brand > div:last-child {
+  min-width: 0;
+}
+.brand b {
+  display: block;
+  line-height: 1.15;
+}
+.brand small {
+  display: block;
+  line-height: 1.4;
+  max-width: 180px;
+}
+.header-right {
+  flex: 0 1 230px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 8px;
+}
+.header-right .pill {
+  justify-content: center;
+  white-space: nowrap;
+  padding: 9px 12px;
+  font-size: 11px;
+  border-color: rgba(168, 85, 247, .28);
+  background: linear-gradient(135deg, rgba(168, 85, 247, .12), rgba(18, 16, 26, .88));
+}
+.header-right .timer {
+  display: block;
+  text-align: center;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(168, 85, 247, .09);
+  border: 1px solid rgba(168, 85, 247, .18);
+  color: #e8c9ff;
+  font-size: clamp(13px, 2.4vw, 17px);
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .2px;
+  white-space: normal;
+}
+.phase-timer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 15px;
+  border: 1px solid rgba(168, 85, 247, .16);
+  border-radius: 14px;
+  background: linear-gradient(100deg, rgba(168, 85, 247, .10), rgba(18, 16, 26, .55));
+  color: var(--muted);
+  line-height: 1.45;
+}
+@media (max-width: 560px) {
+  .top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .brand {
+    width: 100%;
+    gap: 12px;
+  }
+  .brand small {
+    max-width: none;
+  }
+  .header-right {
+    width: 100%;
+    flex: none;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 8px;
+  }
+  .header-right .pill,
+  .header-right .timer {
+    min-width: 0;
+    min-height: 42px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 9px;
+    white-space: normal;
+  }
+  .header-right .pill {
+    font-size: 10px;
+  }
+  .header-right .timer {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .phase-timer {
+    padding: 11px 13px;
+    font-size: 12px;
+  }
+}
