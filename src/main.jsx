@@ -160,7 +160,6 @@ function App() {
 
   return <main className="shell">
     <header className="top"><div className="brand"><div className="logo-wrap"><img src="https://raw.githubusercontent.com/appsbypojos/Music-SLAY/main/file_0000000003c88246aacceec2fd0dc323.png" alt="MUSIC SLAY 2026" /></div><div><b>MUSIC SLAY</b><small>Музыкальная премия · 2026</small></div></div><div className="header-right"><span className="pill"><span className="dot"/> {authStatus}</span></div></header>
-    <section className="hero"><span className="eyebrow">THE AWARDS EXPERIENCE</span><h1>Твоя музыка.<br/><em>Твои победители.</em></h1><p>От предложений участников до церемонии награждения.</p></section>
     <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span></section>
     
     {role==='Гость' && <section className="panel waiting-panel"><span className="eyebrow">MUSIC SLAY 2026</span><h2>Премия готовится</h2><p className="hint">Доступ к текущему этапу откроется после запуска. Откройте Mini App позже, чтобы участвовать.</p></section>}
