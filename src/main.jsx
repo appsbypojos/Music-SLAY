@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import { Trophy, Music2, ShieldCheck, ChevronRight, Check } from 'lucide-react';
+import { Trophy, Music2, ShieldCheck, ChevronRight, Check, Clock3 } from 'lucide-react';
 import './styles.css';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
