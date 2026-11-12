@@ -198,11 +198,17 @@ export default {
           const candidates = await dbRequest(env, `candidates?nomination_id=in.(${filter})&select=id,display_name`);
           const nominationMap = Object.fromEntries(nominations.map(n => [n.id, n.name]));
           const candidateMap = Object.fromEntries(candidates.map(c => [c.id, c.display_name]));
+          const voteCounts = votes.reduce((acc, v) => {
+            acc[v.candidate_id] = (acc[v.candidate_id] || 0) + 1;
+            return acc;
+          }, {});
           return json({
             votes: votes.map(v => ({
               id: v.id,
+              nomination_id: v.nomination_id,
               nomination: nominationMap[v.nomination_id] || "—",
               candidate: candidateMap[v.candidate_id] || "—",
+              vote_count: voteCounts[v.candidate_id] || 0,
               voter: v.voter_telegram_id || "Старый голос — ID не сохранён",
               created_at: v.created_at
             }))
