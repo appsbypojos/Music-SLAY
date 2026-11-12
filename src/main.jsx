@@ -165,7 +165,8 @@ function App() {
   };
 
   return <main className="shell">
-    <header className="top"><div className="brand"><div className="logo-wrap"><img src="https://raw.githubusercontent.com/appsbypojos/Music-SLAY/main/file_0000000003c88246aacceec2fd0dc323.png" alt="MUSIC SLAY 2026" /></div><div><b>MUSIC SLAY</b><small>Музыкальная премия · 2026</small></div></div><div className="header-right"><span className="pill"><span className="dot"/> {authStatus}</span></div></header>
+    <header className="top"><div className="brand"><div className="logo-wrap"><img src="https://raw.githubusercontent.com/appsbypojos/Music-SLAY/main/file_0000000003c88246aacceec2fd0dc323.png" alt="MUSIC SLAY 2026" /></div><div><b>MUSIC SLAY</b><small>Музыкальная премия · 2026</small></div></header>
+    <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span><span className="pill"><span className="dot"/> {authStatus}</span></section>
     <section className="launch-countdown panel" aria-label="Обратный отсчёт до запуска">
       <span className="eyebrow">MUSIC SLAY 2026</span>
       <h1>До старта премии</h1>
@@ -180,7 +181,7 @@ function App() {
         })()}
       </div>
     </section>
-    <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span></section>
+    <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span><span className="pill"><span className="dot"/> {authStatus}</span></section>
     
     {role==='Гость' && <section className="panel waiting-panel"><span className="eyebrow">MUSIC SLAY 2026</span><h2>Премия готовится</h2><p className="hint">Доступ к текущему этапу откроется после запуска. Откройте Mini App позже, чтобы участвовать.</p></section>}
     {role==='Администратор' && phase==='Подготовка' && <section className="panel" data-phase="Подготовка"><div className="sectionhead"><div><span className="eyebrow">START HERE</span><h2>Подготовка Slay</h2></div><ShieldCheck/></div><label>Название выпуска</label><input defaultValue="MUSIC SLAY 2026" disabled/><h3>Номинации</h3>{nominations.map(n=><div className="nomrow" key={n.name}><span>{n.name}</span><span className="muted">{n.candidates.length} демо-кандидатов</span></div>)}<p className="hint">Текущий этап и номинации загружаются из Supabase.</p>{role==='Администратор' && <div className="admin-controls"><button className="primary" disabled={isTransitioning} onClick={()=>advancePhase('candidates')}>Начать сбор кандидатов</button></div>}</section>}
