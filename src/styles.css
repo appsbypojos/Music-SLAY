@@ -1043,3 +1043,26 @@ footer.site-footer a:hover { text-decoration: underline; }
   .nomination-editor { align-items:stretch; }
   .nomination-editor .remove-nomination { padding:10px; }
 }
+
+
+/* Compact countdown */
+.launch-countdown.compact {
+  min-height: 0;
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+}
+.launch-countdown.compact .launch-timer {
+  width: min(100%, 480px);
+  gap: 7px;
+}
+.launch-countdown.compact .launch-timer span {
+  padding: 8px 5px 7px;
+  border-radius: 10px;
+}
+.launch-countdown.compact .launch-timer b {
+  font-size: clamp(19px, 4vw, 28px);
+}
+.launch-countdown.compact .launch-timer small {
+  margin-top: 3px;
+  font-size: 9px;
+}
