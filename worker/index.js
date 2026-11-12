@@ -323,34 +323,37 @@ export default {
         if (url.pathname === "/api/admin/nominations" && request.method === "POST") {
           if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
           const body = await request.json();
-          if (!Array.isArray(body.names) || body.names.length < 1 || body.names.length > 20) return json({ error: "invalid_nominations" }, 400, sameOrigin);
-          const names = body.names.map(value => typeof value === "string" ? value.trim().replace(/\\s+/g, " ") : "");
-          if (names.some(name => name.length < 2 || name.length > 100) || new Set(names.map(name => name.toLocaleLowerCase())).size !== names.length) return json({ error: "invalid_nominations" }, 400, sameOrigin);
+          if (!Array.isArray(body.nominations) || body.nominations.length < 1 || body.nominations.length > 20) return json({ error: "invalid_nominations" }, 400, sameOrigin);
+          const nominations = body.nominations.map(item => ({ id: typeof item?.id === "string" ? item.id : null, name: typeof item?.name === "string" ? item.name.trim().replace(/\\s+/g, " ") : "" }));
+          const names = nominations.map(item => item.name);
+          if (nominations.some(item => item.name.length < 2 || item.name.length > 100) || new Set(names.map(name => name.toLocaleLowerCase())).size !== names.length || new Set(nominations.map(item => item.id).filter(Boolean)).size !== nominations.filter(item => item.id).length) return json({ error: "invalid_nominations" }, 400, sameOrigin);
           const slays = await dbRequest(env, "slays?select=id,current_phase&order=created_at.desc&limit=1");
           if (!slays?.length) return json({ error: "slay_not_found" }, 404, sameOrigin);
           if (slays[0].current_phase !== "preparation") return json({ error: "nominations_locked" }, 409, sameOrigin);
           const slayId = slays[0].id;
           const existing = await dbRequest(env, `nominations?slay_id=eq.${slayId}&select=id,name,position&order=position.asc`);
+          const existingById = new Map(existing.map(row => [row.id, row]));
           const retained = [];
-          for (let index = 0; index < names.length; index++) {
-            const match = existing[index];
-            if (match) {
-              await dbRequest(env, `nominations?id=eq.${match.id}&slay_id=eq.${slayId}`, {
+          for (let index = 0; index < nominations.length; index++) {
+            const item = nominations[index];
+            if (item.id) {
+              if (!existingById.has(item.id)) return json({ error: "invalid_nominations" }, 400, sameOrigin);
+              await dbRequest(env, `nominations?id=eq.${item.id}&slay_id=eq.${slayId}`, {
                 method: "PATCH",
                 headers: { Prefer: "return=minimal" },
-                body: JSON.stringify({ name: names[index], position: index })
+                body: JSON.stringify({ name: item.name, position: index })
               });
-              retained.push(match.id);
+              retained.push(item.id);
             } else {
               const created = await dbRequest(env, "nominations", {
                 method: "POST",
                 headers: { Prefer: "return=representation" },
-                body: JSON.stringify({ slay_id: slayId, name: names[index], position: index })
+                body: JSON.stringify({ slay_id: slayId, name: item.name, position: index })
               });
               retained.push(created[0].id);
             }
           }
-          const removed = existing.slice(names.length).map(row => row.id);
+          const removed = existing.filter(row => !retained.includes(row.id)).map(row => row.id);
           if (removed.length) {
             const filter = removed.map(id => `"${id}"`).join(",");
             await dbRequest(env, `nominations?id=in.(${filter})&slay_id=eq.${slayId}`, { method: "DELETE" });
