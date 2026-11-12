@@ -195,12 +195,10 @@ function App() {
   return <main className="shell">
     <header className="top"><div className="brand"><div className="logo-wrap"><img src="https://raw.githubusercontent.com/appsbypojos/Music-SLAY/main/file_0000000003c88246aacceec2fd0dc323.png" alt="MUSIC SLAY 2026" /></div><div><b>MUSIC SLAY</b><small>Музыкальная премия · 2026</small></div></div></header>
     <section className="rolebar"><label>Пользователь</label><span>{telegramUser ? [telegramUser.firstName, telegramUser.username ? '@'+telegramUser.username : ''].filter(Boolean).join(' · ') : 'Не авторизован'}</span><span className="role-tag">{role}</span><span className="pill"><span className="dot"/> {authStatus}</span></section>
-    {phase!=='Кандидаты' && <section className="launch-countdown panel" aria-label="Обратный отсчёт до запуска">
-      <span className="eyebrow">MUSIC SLAY 2026</span>
-      <h1>До старта премии</h1>
+    <section className="launch-countdown compact panel" aria-label="Обратный отсчёт до 7 декабря 2026">
       <div className="launch-timer">
         {(() => {
-          const remaining = Math.max(0, new Date(2026, 11, 1, 0, 0, 0).getTime() - launchNow);
+          const remaining = Math.max(0, new Date(2026, 11, 7, 0, 0, 0).getTime() - launchNow);
           const days = Math.floor(remaining / 86400000);
           const hours = Math.floor((remaining % 86400000) / 3600000);
           const minutes = Math.floor((remaining % 3600000) / 60000);
@@ -209,7 +207,7 @@ function App() {
         })()}
       </div>
       {role==='Участник' && phase==='Подготовка' && <div className="waiting-panel"><p className="hint">Сейчас идёт подготовка премии. Когда администратор откроет сбор кандидатов, здесь появится доступ к участию.</p></div>}
-    </section>}
+    </section>
     
     
     {role==='Гость' && <section className="panel waiting-panel"><span className="eyebrow">MUSIC SLAY 2026</span><h2>Премия готовится</h2><p className="hint">Доступ к текущему этапу откроется после запуска. Откройте Mini App позже, чтобы участвовать.</p></section>}
