@@ -1114,3 +1114,15 @@ footer.site-footer a:hover { text-decoration: underline; }
 .vote-table tr:last-child td {
   border-bottom: 0;
 }
+
+.vote-table .vote-group-title th {
+  padding: 12px;
+  color: var(--purple-bright);
+  font-size: 14px;
+  font-weight: 700;
+  background: rgba(168,85,247,.08);
+  border-bottom: 1px solid rgba(168,85,247,.22);
+}
+.vote-table .vote-group-title + tr td {
+  padding-top: 12px;
+}
