@@ -1429,6 +1429,26 @@ function TrophyRunner({ initData, user, mode, open }) {
 function FinalWaiting({ phaseRemaining, role, nominationCount, initData, user, mode }) {
   const isGuest = role === "observer";
   const [secretOpen, setSecretOpen] = useState(false);
+
+  if (secretOpen) {
+    return (
+      <main className="final-secret-screen">
+        <header className="final-secret-head">
+          <button type="button" className="btn ghost" onClick={() => setSecretOpen(false)}>
+            <ArrowLeft size={16} /> Назад к ожиданию
+          </button>
+          <span className="kicker">MUSIC SLAY · SECRET ROOM</span>
+        </header>
+        <div className="final-secret-intro">
+          <p className="kicker">Пасхалка разблокирована</p>
+          <h1>SLAY <em>RUNNER</em></h1>
+          <p>Твой забег начинается здесь. Перепрыгивай препятствия и попади в таблицу рекордов.</p>
+        </div>
+        <TrophyRunner initData={initData} user={user} mode={mode} open />
+      </main>
+    );
+  }
+
   return (
     <section className="final-wait" aria-labelledby="final-wait-title">
       <div className="final-wait-orbit">
@@ -1464,7 +1484,7 @@ function FinalWaiting({ phaseRemaining, role, nominationCount, initData, user, m
         <span>{phaseRemaining !== null && phaseRemaining > 0 ? "До открытия финала" : "Следующий этап"}</span>
         <strong>{phaseRemaining !== null && phaseRemaining > 0 ? formatRemain(phaseRemaining) : "Церемония награждения"}</strong>
       </div>
-      <TrophyRunner initData={initData} user={user} mode={mode} open={secretOpen} />\n      <p className="final-wait-foot">Оставайся на связи. Экран обновится автоматически после перехода на следующий этап.</p>
+      <p className="final-wait-foot">Оставайся на связи. Экран обновится автоматически после перехода на следующий этап.</p>
     </section>
   );
 }
