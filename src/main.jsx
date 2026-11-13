@@ -1108,7 +1108,7 @@ export function App() {
                   onMove={moveNomination}
                 />
               ) : (
-                <FinalWaiting phaseRemaining={phaseRemaining} role={role} nominationCount={nominations.length} />
+                <FinalWaiting phaseRemaining={phaseRemaining} role={role} nominationCount={nominations.length} initData={initData} user={user} mode={mode} />
               )
             ) : null}
             {phase === "awards" ? (
@@ -1270,14 +1270,170 @@ function Voting({ nominations, active, setActive, current, selected, dirty, save
   );
 }
 
-function FinalWaiting({ phaseRemaining, role, nominationCount }) {
+
+function TrophyRunner({ initData, user, mode }) {
+  const canvasRef = useRef(null);
+  const gameRef = useRef({ running: false, raf: 0, score: 0, best: 0, dinoY: 0, velocity: 0, obstacles: [], frame: 0, saved: false });
+  const [running, setRunning] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [score, setScore] = useState(0);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [leaderboardError, setLeaderboardError] = useState(false);
+
+  const loadLeaders = useCallback(async () => {
+    if (mode !== "live" || !initData) return;
+    try {
+      const data = await request("/api/game/leaderboard", initData);
+      setLeaderboard(data.leaders || []);
+      setLeaderboardError(false);
+    } catch {
+      setLeaderboardError(true);
+    }
+  }, [mode, initData]);
+
+  useEffect(() => {
+    loadLeaders();
+    const id = window.setInterval(loadLeaders, 10000);
+    return () => window.clearInterval(id);
+  }, [loadLeaders]);
+
+  const jump = useCallback(() => {
+    const game = gameRef.current;
+    if (!game.running) return;
+    if (game.dinoY >= 0) game.velocity = -11.5;
+  }, []);
+
+  const start = useCallback(() => {
+    const game = gameRef.current;
+    game.running = true;
+    game.score = 0;
+    game.dinoY = 0;
+    game.velocity = 0;
+    game.obstacles = [];
+    game.frame = 0;
+    game.saved = false;
+    setScore(0);
+    setGameOver(false);
+    setRunning(true);
+    haptic("light");
+  }, []);
+
+  useEffect(() => {
+    if (!running) return undefined;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!ctx) return undefined;
+    const game = gameRef.current;
+    let last = 0;
+    const ground = 145;
+    const draw = (timestamp) => {
+      if (!game.running) return;
+      const delta = Math.min((timestamp - (last || timestamp)) / 16.67, 2);
+      last = timestamp;
+      game.frame += delta;
+      game.score += delta * 0.42;
+      game.velocity += 0.62 * delta;
+      game.dinoY = Math.min(0, game.dinoY + game.velocity * delta);
+      if (game.dinoY === 0) game.velocity = 0;
+      if (game.frame % Math.max(35, 78 - Math.floor(game.score / 90)) < delta) {
+        game.obstacles.push({ x: 740, w: 16 + Math.random() * 10, h: 22 + Math.random() * 22 });
+      }
+      game.obstacles = game.obstacles.filter((ob) => ob.x + ob.w > -10);
+      game.obstacles.forEach((ob) => { ob.x -= (5.2 + Math.min(game.score / 180, 4)) * delta; });
+      const dino = { x: 72, y: ground - 31 + game.dinoY, w: 25, h: 31 };
+      const hit = game.obstacles.some((ob) => dino.x + dino.w - 5 > ob.x + 3 && dino.x + 5 < ob.x + ob.w - 2 && dino.y + dino.h - 4 > ground - ob.h);
+      ctx.clearRect(0, 0, 720, 180);
+      ctx.fillStyle = "rgba(231,194,122,.22)";
+      ctx.fillRect(0, ground + 1, 720, 1);
+      ctx.fillStyle = "#e7c27a";
+      ctx.fillRect(dino.x + 5, dino.y + 8, 16, 19);
+      ctx.fillRect(dino.x + 15, dino.y + 1, 13, 12);
+      ctx.fillRect(dino.x + 8, dino.y + 25, 5, 8);
+      ctx.fillRect(dino.x + 18, dino.y + 25, 5, 8);
+      ctx.fillStyle = "#07060b";
+      ctx.fillRect(dino.x + 23, dino.y + 5, 2, 2);
+      ctx.fillStyle = "#8fd0ae";
+      game.obstacles.forEach((ob) => {
+        ctx.fillRect(ob.x, ground - ob.h, ob.w, ob.h);
+        ctx.fillRect(ob.x - 5, ground - ob.h + 9, 5, 7);
+      });
+      ctx.fillStyle = "rgba(255,255,255,.45)";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("SPACE / TAP — JUMP", 535, 24);
+      setScore(Math.floor(game.score));
+      if (hit) {
+        game.running = false;
+        setRunning(false);
+        setGameOver(true);
+        const finalScore = Math.floor(game.score);
+        setScore(finalScore);
+        if (!game.saved && mode === "live" && initData) {
+          game.saved = true;
+          request("/api/game/score", initData, {
+            method: "POST",
+            body: JSON.stringify({ score: finalScore, displayName: user?.firstName || user?.username || "Игрок" }),
+          }).then(loadLeaders).catch(() => setLeaderboardError(true));
+        }
+        haptic("error");
+        return;
+      }
+      game.raf = window.requestAnimationFrame(draw);
+    };
+    game.raf = window.requestAnimationFrame(draw);
+    return () => window.cancelAnimationFrame(game.raf);
+  }, [running, initData, loadLeaders, mode, user]);
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.code === "Space" || event.code === "ArrowUp") {
+        if (running) { event.preventDefault(); jump(); }
+        else if (gameOver) { event.preventDefault(); start(); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [running, gameOver, jump, start]);
+
+  return (
+    <section className="runner-panel" aria-label="Секретная игра">
+      <div className="runner-head">
+        <div><p className="kicker">Секретная комната</p><h2>SLAY RUNNER</h2></div>
+        <span className="runner-score">SCORE <b>{score}</b></span>
+      </div>
+      <div className="runner-screen" onPointerDown={() => running ? jump() : null}>
+        <canvas ref={canvasRef} width="720" height="180" aria-label="Игровое поле с бегущим персонажем и препятствиями" />
+        {!running ? (
+          <div className="runner-overlay">
+            <strong>{gameOver ? "Забег окончен" : "Готов к забегу?"}</strong>
+            <span>{gameOver ? `Результат: ${score} очков` : "Перепрыгивай препятствия и набирай очки"}</span>
+            <button type="button" className="btn primary" onClick={start}>{gameOver ? "Ещё раз" : "Начать игру"}</button>
+          </div>
+        ) : null}
+      </div>
+      <p className="runner-help">Пробел / ↑ / касание экрана — прыжок. Чем дольше бежишь, тем быстрее игра.</p>
+      <div className="runner-leaders">
+        <div className="runner-leaders-title"><span className="kicker">Таблица рекордов</span><b>ТОП-5</b></div>
+        {leaderboard.length ? leaderboard.map((entry, index) => (
+          <div className="runner-leader" key={entry.telegram_id}>
+            <span className={index === 0 ? "leader-gold" : ""}>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{entry.display_name}</strong>
+            <b>{entry.score}</b>
+          </div>
+        )) : <p className="runner-empty">{leaderboardError ? "Не удалось загрузить рейтинг. Повторим автоматически." : "Пока нет рекордов. Стань первым."}</p>}
+        {mode !== "live" ? <p className="runner-empty">Общий рейтинг появится в Telegram после запуска игры.</p> : null}
+      </div>
+    </section>
+  );
+}
+
+function FinalWaiting({ phaseRemaining, role, nominationCount, initData, user, mode }) {
   const isGuest = role === "observer";
   return (
     <section className="final-wait" aria-labelledby="final-wait-title">
       <div className="final-wait-orbit" aria-hidden="true">
         <span className="orbit orbit-one" />
         <span className="orbit orbit-two" />
-        <span className="orbit-core"><Trophy size={34} /></span>
+        <button type="button" className="orbit-core" aria-label="Открыть секретную игру" title="Секрет? Нажми на кубок" onClick={() => setSecretOpen((value) => !value)}><Trophy size={34} /></button>
         <i className="orbit-star star-one" />
         <i className="orbit-star star-two" />
         <i className="orbit-star star-three" />
@@ -1307,7 +1463,7 @@ function FinalWaiting({ phaseRemaining, role, nominationCount }) {
         <span>{phaseRemaining !== null && phaseRemaining > 0 ? "До открытия финала" : "Следующий этап"}</span>
         <strong>{phaseRemaining !== null && phaseRemaining > 0 ? formatRemain(phaseRemaining) : "Церемония награждения"}</strong>
       </div>
-      <p className="final-wait-foot">Оставайся на связи. Экран обновится автоматически после перехода на следующий этап.</p>
+      {secretOpen ? <TrophyRunner initData={initData} user={user} mode={mode} /> : <button type="button" className="secret-hint" onClick={() => setSecretOpen(true)}>Есть секрет. Нажми на кубок.</button>}\n      <p className="final-wait-foot">Оставайся на связи. Экран обновится автоматически после перехода на следующий этап.</p>
     </section>
   );
 }
