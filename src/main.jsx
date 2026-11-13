@@ -1271,7 +1271,7 @@ function Voting({ nominations, active, setActive, current, selected, dirty, save
 }
 
 
-function TrophyRunner({ initData, user, mode }) {
+function TrophyRunner({ initData, user, mode, open }) {
   const canvasRef = useRef(null);
   const gameRef = useRef({ running: false, raf: 0, score: 0, best: 0, dinoY: 0, velocity: 0, obstacles: [], frame: 0, saved: false });
   const [running, setRunning] = useState(false);
@@ -1395,12 +1395,12 @@ function TrophyRunner({ initData, user, mode }) {
   }, [running, gameOver, jump, start]);
 
   return (
-    <section className="runner-panel" aria-label="Секретная игра">
-      <div className="runner-head">
+    <section className="runner-panel" aria-label="Секретная игра и таблица лидеров">
+      <div className="runner-head" style={{ display: open ? "flex" : "none" }}>
         <div><p className="kicker">Секретная комната</p><h2>SLAY RUNNER</h2></div>
         <span className="runner-score">SCORE <b>{score}</b></span>
       </div>
-      <div className="runner-screen" onPointerDown={() => running ? jump() : null}>
+      <div className="runner-screen" style={{ display: open ? "block" : "none" }} onPointerDown={() => running ? jump() : null}>
         <canvas ref={canvasRef} width="720" height="180" aria-label="Игровое поле с бегущим персонажем и препятствиями" />
         {!running ? (
           <div className="runner-overlay">
@@ -1410,7 +1410,7 @@ function TrophyRunner({ initData, user, mode }) {
           </div>
         ) : null}
       </div>
-      <p className="runner-help">Пробел / ↑ / касание экрана — прыжок. Чем дольше бежишь, тем быстрее игра.</p>
+      <p className="runner-help" style={{ display: open ? "block" : "none" }}>Пробел / ↑ / касание экрана — прыжок. Чем дольше бежишь, тем быстрее игра.</p>
       <div className="runner-leaders">
         <div className="runner-leaders-title"><span className="kicker">Таблица рекордов</span><b>ТОП-5</b></div>
         {leaderboard.length ? leaderboard.map((entry, index) => (
@@ -1464,7 +1464,7 @@ function FinalWaiting({ phaseRemaining, role, nominationCount, initData, user, m
         <span>{phaseRemaining !== null && phaseRemaining > 0 ? "До открытия финала" : "Следующий этап"}</span>
         <strong>{phaseRemaining !== null && phaseRemaining > 0 ? formatRemain(phaseRemaining) : "Церемония награждения"}</strong>
       </div>
-      {secretOpen ? <TrophyRunner initData={initData} user={user} mode={mode} /> : <button type="button" className="secret-hint" onClick={() => setSecretOpen(true)}>Есть секрет. Нажми на кубок.</button>}\n      <p className="final-wait-foot">Оставайся на связи. Экран обновится автоматически после перехода на следующий этап.</p>
+      <TrophyRunner initData={initData} user={user} mode={mode} open={secretOpen} />\n      <p className="final-wait-foot">Оставайся на связи. Экран обновится автоматически после перехода на следующий этап.</p>
     </section>
   );
 }
