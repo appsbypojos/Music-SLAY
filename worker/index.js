@@ -165,7 +165,7 @@ export default {
           const ids = nominations.map(n => n.id);
           let candidates = [];
           if (ids.length) {
-            const filter = ids.map(id => `"${id}"`).join(",");
+            const filter = ids.join(",");
             candidates = await dbRequest(env, `candidates?nomination_id=in.(${filter})&select=id,nomination_id,display_name,suggestion_count,is_top5&order=created_at.asc`);
           }
           const myVotes = auth.role === "participant" ? await dbRequest(env, `votes?voter_hash=eq.${await userHash(env, auth.user.id, "vote")}&select=nomination_id,candidate_id`) : [];
@@ -193,7 +193,7 @@ export default {
           const nominations = await dbRequest(env, `nominations?slay_id=eq.${slays[0].id}&select=id,name&order=position.asc`);
           const nominationIds = nominations.map(n => n.id);
           if (!nominationIds.length) return json({ votes: [] }, 200, sameOrigin);
-          const filter = nominationIds.map(id => `"${id}"`).join(",");
+          const filter = nominationIds.join(",");
           const votes = await dbRequest(env, `votes?nomination_id=in.(${filter})&select=id,nomination_id,candidate_id,voter_telegram_id,created_at&order=created_at.desc`);
           const candidates = await dbRequest(env, `candidates?nomination_id=in.(${filter})&select=id,display_name`);
           const nominationMap = Object.fromEntries(nominations.map(n => [n.id, n.name]));
@@ -384,7 +384,7 @@ export default {
           }
           const removed = existing.filter(row => !retained.includes(row.id)).map(row => row.id);
           if (removed.length) {
-            const filter = removed.map(id => `"${id}"`).join(",");
+            const filter = removed.join(",");
             await dbRequest(env, `nominations?id=in.(${filter})&slay_id=eq.${slayId}`, { method: "DELETE" });
           }
           await dbRequest(env, "admin_action_log", {
