@@ -398,8 +398,10 @@ function Notice({ children }) {
 }
 
 function Ceremony({ rows, slide, setSlide, playing, setPlaying }) {
-  const row = rows[slide];
-  if (!rows.length || !row) {
+  const safeRows = Array.isArray(rows) ? rows.filter((item) => item && typeof item === "object") : [];
+  const safeSlide = Number.isInteger(slide) && slide >= 0 && slide < safeRows.length ? slide : 0;
+  const row = safeRows[safeSlide];
+  if (!row) {
     return (
       <Empty
         icon={<Trophy size={28} />}
@@ -408,30 +410,35 @@ function Ceremony({ rows, slide, setSlide, playing, setPlaying }) {
       />
     );
   }
-  const winner = row.winner;
+  const winner = row.winner && typeof row.winner === "object" ? row.winner : null;
+  const nomination = typeof row.nomination === "string" ? row.nomination : "Номинация";
+  const winnerName = typeof winner?.candidate === "string" && winner.candidate.trim() ? winner.candidate : "Победитель не определён";
+  const score = Number.isFinite(Number(winner?.finalScore)) ? winner.finalScore : "—";
+  const userVotes = Number.isFinite(Number(winner?.userVotes)) ? winner.userVotes : "—";
+  const juryVotes = Number.isFinite(Number(winner?.juryVotesTotal ?? winner?.juryVotes)) ? (winner?.juryVotesTotal ?? winner?.juryVotes) : "—";
   return (
     <section className="ceremony" aria-live="polite">
-      <p className="kicker"><span className="live-dot" /> Церемония · {String(slide + 1).padStart(2, "0")} / {String(rows.length).padStart(2, "0")}</p>
-      <div className="ceremony-stage" key={row.nominationId || row.nomination}>
+      <p className="kicker"><span className="live-dot" /> Церемония · {String(safeSlide + 1).padStart(2, "0")} / {String(safeRows.length).padStart(2, "0")}</p>
+      <div className="ceremony-stage" key={String(row.nominationId || nomination)}>
         <Crown size={22} />
-        <p className="ceremony-nom">{row.nomination}</p>
-        <h2 className="ceremony-winner">{winner?.candidate || "Победитель не определён"}</h2>
+        <p className="ceremony-nom">{nomination}</p>
+        <h2 className="ceremony-winner">{winnerName}</h2>
         <div className="ceremony-stats">
-          <span>Итог <b>{winner?.finalScore ?? "—"}</b></span>
-          <span>Голоса <b>{winner?.userVotes ?? "—"}</b></span>
-          <span>Жюри <b>{winner?.juryVotesTotal ?? winner?.juryVotes ?? "—"}</b></span>
+          <span>Итог <b>{score}</b></span>
+          <span>Голоса <b>{userVotes}</b></span>
+          <span>Жюри <b>{juryVotes}</b></span>
         </div>
       </div>
       <div className="ceremony-nav">
-        <IconButton label="Предыдущий победитель" onClick={() => { setPlaying(false); setSlide((s) => (s - 1 + rows.length) % rows.length); }}>
+        <IconButton label="Предыдущий победитель" onClick={() => { setPlaying(false); setSlide((s) => (s - 1 + safeRows.length) % safeRows.length); }}>
           <ArrowLeft size={18} />
         </IconButton>
         <div className="dots">
-          {rows.map((item, index) => (
-            <button key={item.nominationId || item.nomination} type="button" className={cx("dot", index === slide && "is-on")} aria-label={item.nomination} onClick={() => { setPlaying(false); setSlide(index); }} />
+          {safeRows.map((item, index) => (
+            <button key={String(item.nominationId || item.nomination || index)} type="button" className={cx("dot", index === safeSlide && "is-on")} aria-label={typeof item.nomination === "string" ? item.nomination : `Номинация ${index + 1}`} onClick={() => { setPlaying(false); setSlide(index); }} />
           ))}
         </div>
-        <IconButton label="Следующий победитель" onClick={() => { setPlaying(false); setSlide((s) => (s + 1) % rows.length); }}>
+        <IconButton label="Следующий победитель" onClick={() => { setPlaying(false); setSlide((s) => (s + 1) % safeRows.length); }}>
           <ArrowRight size={18} />
         </IconButton>
         <button type="button" className="btn ghost play" onClick={() => setPlaying((v) => !v)}>
