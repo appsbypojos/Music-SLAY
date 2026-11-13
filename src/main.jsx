@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
