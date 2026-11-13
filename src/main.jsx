@@ -568,25 +568,48 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const tg = window.Telegram?.WebApp;
-    const data = tg?.initData || "";
-    if (!data) {
-      setMode("demo");
-      setAuth("Режим просмотра");
-      setRole("participant");
-      return;
-    }
-    setMode("boot");
-    setAuth("Проверяем сессию…");
-    try {
-      tg.ready();
-      tg.expand();
-      tg.setHeaderColor?.("#07060b");
-      tg.setBackgroundColor?.("#07060b");
-    } catch { /* older clients */ }
-    setInitData(data);
-    initRef.current = data;
-    (async () => {
+    const root = document.getElementById("root");
+    if (root) root.dataset.app = "mounted";
+
+    const start = async () => {
+      // Telegram's SDK is loaded asynchronously so a slow CDN cannot block
+      // the app's module script and leave the static loading screen forever.
+      if (!window.Telegram?.WebApp) {
+        const sdk = document.getElementById("telegram-webapp-sdk");
+        if (sdk) {
+          await new Promise((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(timer);
+              resolve();
+            };
+            const timer = window.setTimeout(finish, 2500);
+            sdk.addEventListener("load", finish, { once: true });
+            sdk.addEventListener("error", finish, { once: true });
+          });
+        }
+      }
+      if (cancelled) return;
+      const tg = window.Telegram?.WebApp;
+      const data = tg?.initData || "";
+      if (!data) {
+        setMode("demo");
+        setAuth("Режим просмотра");
+        setRole("participant");
+        return;
+      }
+      setMode("boot");
+      setAuth("Проверяем сессию…");
+      try {
+        tg.ready();
+        tg.expand();
+        tg.setHeaderColor?.("#07060b");
+        tg.setBackgroundColor?.("#07060b");
+      } catch { /* older clients */ }
+      setInitData(data);
+      initRef.current = data;
       try {
         const session = await request("/api/telegram/session", "", {
           method: "POST",
@@ -605,7 +628,9 @@ export function App() {
         setMode("denied");
         setAuth(humanError(error));
       }
-    })();
+    };
+
+    start();
     return () => { cancelled = true; };
   }, [applyState]);
 
