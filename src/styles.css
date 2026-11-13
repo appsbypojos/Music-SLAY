@@ -522,3 +522,10 @@ textarea:focus, input:focus { border-color: #7c5cff; }
 .final-secret-screen .runner-head { display: flex !important; }
 .final-secret-screen .runner-screen { display: block !important; }
 .final-secret-screen .runner-help { display: block !important; }
+
+/* Admin jury membership */
+.jury-add-form { display:grid; grid-template-columns:1fr 1fr auto; align-items:end; gap:12px; margin:18px 0 22px; }
+.jury-add-form label { display:grid; gap:7px; color:#a79eaf; font-size:11px; }
+.jury-add-form input { width:100%; min-width:0; padding:12px 13px; border:1px solid rgba(231,194,122,.2); border-radius:10px; outline:none; background:#100d17; color:#f3e5c6; font:inherit; }
+.jury-add-form input:focus { border-color:#e7c27a; }
+@media(max-width:650px) { .jury-add-form { grid-template-columns:1fr; } }
