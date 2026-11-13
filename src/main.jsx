@@ -1032,8 +1032,8 @@ export function App() {
           adminVotes={adminVotes}
           adminVoters={adminVoters}
           votesUpdated={votesUpdated}
-          duration={duration}
-          setDuration={setDuration}
+          scheduleAt={scheduleAt}
+          setScheduleAt={setScheduleAt}
           busy={busy}
           results={results}
           nextPhase={nextPhase}
@@ -1317,7 +1317,7 @@ function Jury({ nominations, active, setActive, current, scores, scoreState, sta
 function AdminConsole(props) {
   const {
     user, role, phaseMeta, phaseEndsAt, phaseRemaining, nominations, draft, setDraft, adminTab, setAdminTab,
-    adminVotes, adminVoters, votesUpdated, duration, setDuration, busy, results, nextPhase, top5Ready, missingTop5,
+    adminVotes, adminVoters, votesUpdated, scheduleAt, setScheduleAt, busy, results, nextPhase, top5Ready, missingTop5,
     onSaveNominations, onSaveTop5, onAskPhase, onSchedulePhase, onRefreshVotes, onRefreshResults, slide, setSlide, playing, setPlaying, phase,
   } = props;
   return (
