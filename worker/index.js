@@ -409,7 +409,22 @@ export default {
         return json({ error: "not_found" }, 404, sameOrigin);
       } catch (error) { return fail(error, sameOrigin); }
     }
-    if (env.ASSETS) return env.ASSETS.fetch(request);
+    if (env.ASSETS) {
+      const assetResponse = await env.ASSETS.fetch(request);
+      const contentType = assetResponse.headers.get("Content-Type") || "";
+      if (contentType.includes("text/html")) {
+        const headers = new Headers(assetResponse.headers);
+        headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        headers.set("Pragma", "no-cache");
+        headers.set("Expires", "0");
+        return new Response(assetResponse.body, {
+          status: assetResponse.status,
+          statusText: assetResponse.statusText,
+          headers
+        });
+      }
+      return assetResponse;
+    }
     return new Response("MUSIC SLAY 2026 API is online. Frontend assets are not attached to this Worker deployment.", {
       headers: { "Content-Type": "text/plain; charset=utf-8" }
     });
