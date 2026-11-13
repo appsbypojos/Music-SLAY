@@ -1522,6 +1522,30 @@ function AdminConsole(props) {
           ) : null}
         </div>
       </div>
+      <section className="panel voters-always">
+        <header className="panel-head">
+          <h2>База голосующих</h2>
+          <p>Постоянный список участников на всех этапах. Сортировка по числу отданных голосов — по убыванию.</p>
+        </header>
+        <div className="live-line">
+          <span>{adminVoters.length} участников</span>
+          <span>обновлено {votesUpdated ? new Date(votesUpdated).toLocaleTimeString("ru-RU") : "—"}</span>
+          <IconButton label="Обновить базу голосующих" onClick={onRefreshVotes}><RefreshCw size={15} /></IconButton>
+        </div>
+        <div className="table-wrap">
+          <table className="audit">
+            <thead><tr><th>#</th><th>Telegram</th><th>Голосов</th><th>Последний голос</th></tr></thead>
+            <tbody>
+              {adminVoters.length ? adminVoters.map((row, index) => (
+                <tr key={row.voter || index}>
+                  <td>{index + 1}</td><td>{row.voter || "—"}</td><td><b>{row.vote_count ?? 0}</b></td>
+                  <td>{row.last_vote_at ? new Date(row.last_vote_at).toLocaleString("ru-RU") : "—"}</td>
+                </tr>
+              )) : <tr><td colSpan={4} className="table-empty">Голосующих пока нет</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
       <footer className="footer"><span>MUSIC SLAY 2026</span><span>Пульт администратора</span></footer>
     </main>
   );
