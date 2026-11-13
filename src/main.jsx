@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity,
@@ -439,6 +439,32 @@ function Ceremony({ rows, slide, setSlide, playing, setPlaying }) {
       </div>
     </section>
   );
+}
+
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error) {
+    console.error("[MUSIC SLAY] React render failed:", error);
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <main className="ms-boot" role="alert">
+          <Mark />
+          <p className="kicker">MUSIC SLAY 2026</p>
+          <h1>Не удалось открыть экран</h1>
+          <p>Ошибка интерфейса. Закрой мини-приложение и открой его снова. Если ошибка повторится, сообщи администратору.</p>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export function App() {
@@ -1448,5 +1474,5 @@ function AdminConsole(props) {
 const rootEl = typeof document !== "undefined" ? document.getElementById("root") : null;
 if (rootEl && !rootEl.dataset.app) {
   rootEl.dataset.app = "1";
-  createRoot(rootEl).render(<App />);
+  createRoot(rootEl).render(<AppErrorBoundary><App /></AppErrorBoundary>);
 }
