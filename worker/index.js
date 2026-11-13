@@ -105,6 +105,27 @@ const fail = (error, origin) => {
 };
 
 export default {
+  async scheduled(controller, env, ctx) {
+    try {
+      if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
+      const slays = await dbRequest(env, "slays?select=id,current_phase,phase_ends_at&order=created_at.desc&limit=1");
+      const slay = slays?.[0];
+      if (!slay?.phase_ends_at || new Date(slay.phase_ends_at).getTime() > Date.now()) return;
+      const nextPhase = { preparation: "candidates", candidates: "voting", voting: "jury", jury: "awards" }[slay.current_phase];
+      if (!nextPhase) return;
+      await dbRequest(env, "rpc/ms_admin_set_phase", {
+        method: "POST",
+        body: JSON.stringify({
+          p_slay_id: slay.id,
+          p_next_phase: nextPhase,
+          p_duration_seconds: null,
+          p_actor_telegram_id: "SYSTEM"
+        })
+      });
+    } catch (error) {
+      console.error("scheduled phase transition failed", error?.message || error);
+    }
+  },
   async fetch(request, env) {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
