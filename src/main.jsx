@@ -490,7 +490,7 @@ export function App() {
   const [votesUpdated, setVotesUpdated] = useState(null);
   const [results, setResults] = useState([]);
   const [adminTab, setAdminTab] = useState("nominations");
-  const [duration, setDuration] = useState("24");
+  const [scheduleAt, setScheduleAt] = useState("");
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState(null);
   const [now, setNow] = useState(null);
@@ -754,12 +754,10 @@ export function App() {
   const missingTop5 = nominations.filter((n) => n.candidates.filter((c) => c.top5).length !== 5).map((n) => n.name);
 
   function durationSeconds() {
-    const raw = String(duration).trim();
-    if (raw === "" || Number(raw) === 0) return null;
-    const hours = Number(raw);
-    if (!Number.isFinite(hours) || hours < 0) throw new Error("Укажи длительность в часах");
-    const seconds = Math.round(hours * 3600);
-    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 2592000) throw new Error("invalid_duration");
+    if (!scheduleAt) return null;
+    const target = new Date(scheduleAt).getTime();
+    const seconds = Math.ceil((target - Date.now()) / 1000);
+    if (!Number.isFinite(target) || seconds < 60 || seconds > 31622400) throw new Error("Выбери дату и время минимум через минуту, не дальше чем через год");
     return seconds;
   }
 
@@ -1459,17 +1457,10 @@ function AdminConsole(props) {
                 <strong>{phaseMeta.label}</strong>
                 <small>{phaseEndsAt ? `До ${new Date(phaseEndsAt).toLocaleString("ru-RU")}` : "Таймер не задан"}</small>
               </div>
-              <p className="label">Длительность следующего этапа</p>
-              <div className="presets">
-                {HOUR_PRESETS.map((hours) => (
-                  <button key={hours} type="button" className={cx("chip", String(duration) === String(hours) && "is-on")} onClick={() => setDuration(String(hours))}>
-                    {hours === 0 ? "Без таймера" : `${hours} ч`}
-                  </button>
-                ))}
-              </div>
-              <label className="hours" htmlFor="hours">
-                <input id="hours" inputMode="numeric" min="0" max="720" type="number" value={duration} onChange={(event) => setDuration(event.target.value)} />
-                <span>часов, 0 — без ограничения</span>
+              <p className="label">Автоматический переход по расписанию</p>
+              <label className="hours" htmlFor="phase-schedule">
+                <input id="phase-schedule" type="datetime-local" step="60" min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} />
+                <span>Дата и местное время. Когда срок наступит, сервер автоматически откроет следующий этап. Оставь пустым для ручного перехода.</span>
               </label>
               {nextPhase ? (
                 <button type="button" className="btn primary block" disabled={Boolean(busy) || (nextPhase.id === "voting" && !top5Ready)} onClick={() => onAskPhase(nextPhase.id)}>
