@@ -562,7 +562,7 @@ export function App() {
 
   const addJuryMember = () => run("jury-add", async () => {
     const telegramId = juryTelegramId.trim();
-    if (!/^\\d{1,20}$/.test(telegramId)) throw new Error("Укажи корректный числовой Telegram ID");
+    if (!/^\d{1,20}$/.test(telegramId)) throw new Error("Укажи корректный числовой Telegram ID");
     if (modeRef.current === "demo") setJuryMembers((rows) => [...rows.filter((row) => row.telegram_id !== telegramId), { telegram_id: telegramId, display_name: juryDisplayName.trim() }]);
     else { await request("/api/admin/jury", initRef.current, { method: "POST", body: JSON.stringify({ telegramId, displayName: juryDisplayName.trim() }) }); await refreshJury(); }
     setJuryTelegramId(""); setJuryDisplayName("");
