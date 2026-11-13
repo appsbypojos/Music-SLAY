@@ -226,7 +226,7 @@ export default {
           const body = await request.json();
           const telegramId = String(body?.telegramId || "").trim();
           const displayName = String(body?.displayName || "").trim().slice(0, 80);
-          if (!/^\\d{1,20}$/.test(telegramId)) return json({ error: "invalid_telegram_id" }, 400, sameOrigin);
+          if (!/^\d{1,20}$/.test(telegramId)) return json({ error: "invalid_telegram_id" }, 400, sameOrigin);
           await dbRequest(env, "jury_members?on_conflict=telegram_id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ telegram_id: telegramId, display_name: displayName }) });
           return json({ ok: true }, 200, sameOrigin);
         }
@@ -234,7 +234,7 @@ export default {
           if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
           const body = await request.json();
           const telegramId = String(body?.telegramId || "").trim();
-          if (!/^\\d{1,20}$/.test(telegramId)) return json({ error: "invalid_telegram_id" }, 400, sameOrigin);
+          if (!/^\d{1,20}$/.test(telegramId)) return json({ error: "invalid_telegram_id" }, 400, sameOrigin);
           await dbRequest(env, `jury_members?telegram_id=eq.${telegramId}`, { method: "DELETE" });
           return json({ ok: true }, 200, sameOrigin);
         }
