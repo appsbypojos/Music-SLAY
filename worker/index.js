@@ -215,6 +215,27 @@ export default {
           }, 200, sameOrigin);
         }
 
+        if (url.pathname === "/api/admin/voters" && request.method === "GET") {
+          if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
+          const slays = await dbRequest(env, "slays?select=id&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ voters: [] }, 200, sameOrigin);
+          const nominations = await dbRequest(env, `nominations?slay_id=eq.${slays[0].id}&select=id`);
+          const nominationIds = nominations.map(n => n.id);
+          if (!nominationIds.length) return json({ voters: [] }, 200, sameOrigin);
+          const filter = nominationIds.join(",");
+          const votes = await dbRequest(env, `votes?nomination_id=in.(${filter})&select=voter_telegram_id,created_at`);
+          const byVoter = new Map();
+          for (const vote of votes) {
+            const voter = vote.voter_telegram_id || "Старый голос — ID не сохранён";
+            const current = byVoter.get(voter) || { voter, vote_count: 0, last_vote_at: null };
+            current.vote_count += 1;
+            if (!current.last_vote_at || new Date(vote.created_at) > new Date(current.last_vote_at)) current.last_vote_at = vote.created_at;
+            byVoter.set(voter, current);
+          }
+          const voters = [...byVoter.values()].sort((a, b) => b.vote_count - a.vote_count || String(a.voter).localeCompare(String(b.voter), "ru"));
+          return json({ voters }, 200, sameOrigin);
+        }
+
         if (url.pathname === "/api/votes" && request.method === "POST") {
           if (auth.role !== "participant") return json({ error: "forbidden" }, 403, sameOrigin);
           const body = await request.json();
