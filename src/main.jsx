@@ -928,7 +928,7 @@ export function App() {
 
   function changePhase(nextId) {
     return run("phase", async () => {
-      const seconds = durationSeconds();
+      const seconds = null;
       if (modeRef.current === "demo") {
         setPhase(nextId);
         setPhaseEndsAt(seconds ? new Date(Date.now() + seconds * 1000).toISOString() : null);
