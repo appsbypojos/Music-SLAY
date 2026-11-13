@@ -378,6 +378,22 @@ export default {
           }, 200, sameOrigin);
         }
 
+        if (url.pathname === "/api/admin/schedule-phase" && request.method === "POST") {
+          if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          const at = new Date(body?.at);
+          if (!Number.isFinite(at.getTime()) || at.getTime() < Date.now() + 60000 || at.getTime() > Date.now() + 31622400000) {
+            return json({ error: "invalid_duration" }, 400, sameOrigin);
+          }
+          const slays = await dbRequest(env, "slays?select=id,current_phase&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ error: "slay_not_found" }, 404, sameOrigin);
+          const result = await dbRequest(env, "rpc/ms_admin_schedule_phase", {
+            method: "POST",
+            body: JSON.stringify({ p_slay_id: slays[0].id, p_ends_at: at.toISOString(), p_actor_telegram_id: String(auth.user.id) })
+          });
+          return json({ ok: true, slay: result }, 200, sameOrigin);
+        }
+
         if (url.pathname === "/api/admin/phase" && request.method === "POST") {
           if (auth.role !== "admin") return json({ error: "forbidden" }, 403, sameOrigin);
           const body = await request.json();
