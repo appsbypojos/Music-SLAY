@@ -8,7 +8,7 @@
     <meta name="description" content="MUSIC SLAY 2026 — музыкальная премия" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>MUSIC SLAY 2026</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script id="telegram-webapp-sdk" async src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
     <div id="root"><main style="min-height:100dvh;display:grid;align-content:center;gap:12px;padding:32px 24px;background:#07060b;color:#f6f3fb;font:16px system-ui,sans-serif"><strong style="letter-spacing:.14em">MUSIC SLAY 2026</strong><span style="color:#9b94ab">Загрузка приложения…</span></main></div>
@@ -16,7 +16,7 @@
       (function () {
         var root = document.getElementById("root");
         function showError(message) {
-          if (!root || root.dataset.app === "1") return;
+          if (!root || root.dataset.app === "mounted") return;
           root.innerHTML = '<main style="min-height:100dvh;display:grid;align-content:center;gap:12px;padding:32px 24px;background:#07060b;color:#f6f3fb;font:16px system-ui,sans-serif"><strong>MUSIC SLAY 2026</strong><h2 style="margin:0">Не удалось запустить приложение</h2><p style="color:#c5bdcf;overflow-wrap:anywhere">' + String(message).replace(/[&<>"]/g, function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}) + '</p><p style="color:#9b94ab">Сделай скриншот этого сообщения.</p></main>';
         }
         window.addEventListener("error", function (event) {
@@ -27,7 +27,7 @@
           showError(event.reason && (event.reason.message || event.reason) || "Ошибка выполнения приложения");
         });
         window.setTimeout(function () {
-          if (root && root.dataset.app !== "1") showError("JavaScript не запустился за 10 секунд. Проверь загрузку файла /assets/…js");
+          if (root && root.dataset.app !== "mounted") showError("React не смонтировал интерфейс за 10 секунд. Проверь загрузку JavaScript и консоль браузера.");
         }, 10000);
       })();
     </script>
