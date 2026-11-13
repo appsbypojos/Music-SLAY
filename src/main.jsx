@@ -453,22 +453,25 @@ function Ceremony({ rows, slide, setSlide, playing, setPlaying }) {
 class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { failed: false };
+    this.state = { failed: false, error: null };
   }
-  static getDerivedStateFromError() {
-    return { failed: true };
+  static getDerivedStateFromError(error) {
+    return { failed: true, error };
   }
-  componentDidCatch(error) {
-    console.error("[MUSIC SLAY] React render failed:", error);
+  componentDidCatch(error, info) {
+    console.error("[MUSIC SLAY] React render failed:", error, info?.componentStack || "");
   }
   render() {
     if (this.state.failed) {
+      const message = this.state.error?.message || String(this.state.error || "Неизвестная ошибка");
       return (
         <main className="ms-boot" role="alert">
           <Mark />
           <p className="kicker">MUSIC SLAY 2026</p>
           <h1>Не удалось открыть экран</h1>
-          <p>Ошибка интерфейса. Закрой мини-приложение и открой его снова. Если ошибка повторится, сообщи администратору.</p>
+          <p>Причина ошибки:</p>
+          <pre style={{ maxWidth: "100%", whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "#ffb4bd", fontSize: 13 }}>{message}</pre>
+          <p>Сделай скриншот этого сообщения и отправь администратору.</p>
         </main>
       );
     }
