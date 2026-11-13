@@ -1042,6 +1042,7 @@ export function App() {
           onSaveNominations={saveNominations}
           onSaveTop5={saveTop5}
           onAskPhase={askPhase}
+          onSchedulePhase={scheduleNextPhase}
           onRefreshVotes={() => refreshVotes().catch((error) => notify(humanError(error), "error"))}
           onRefreshResults={() => run("results", refreshResults, "Результаты обновлены")}
           slide={slide}
@@ -1317,7 +1318,7 @@ function AdminConsole(props) {
   const {
     user, role, phaseMeta, phaseEndsAt, phaseRemaining, nominations, draft, setDraft, adminTab, setAdminTab,
     adminVotes, adminVoters, votesUpdated, duration, setDuration, busy, results, nextPhase, top5Ready, missingTop5,
-    onSaveNominations, onSaveTop5, onAskPhase, onRefreshVotes, onRefreshResults, slide, setSlide, playing, setPlaying, phase,
+    onSaveNominations, onSaveTop5, onAskPhase, onSchedulePhase, onRefreshVotes, onRefreshResults, slide, setSlide, playing, setPlaying, phase,
   } = props;
   return (
     <main className="admin">
@@ -1486,7 +1487,7 @@ function AdminConsole(props) {
               </label>
               {nextPhase ? (
                 <>
-                  <button type="button" className="btn ghost block" disabled={Boolean(busy) || !scheduleAt || (nextPhase.id === "voting" && !top5Ready)} onClick={scheduleNextPhase}>
+                  <button type="button" className="btn ghost block" disabled={Boolean(busy) || !scheduleAt || (nextPhase.id === "voting" && !top5Ready)} onClick={onSchedulePhase}>
                     Запланировать переход на «{nextPhase.label}»
                   </button>
                   <button type="button" className="btn primary block" disabled={Boolean(busy) || (nextPhase.id === "voting" && !top5Ready)} onClick={() => onAskPhase(nextPhase.id)}>
