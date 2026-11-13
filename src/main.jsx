@@ -1094,18 +1094,22 @@ export function App() {
               />
             ) : null}
             {phase === "jury" ? (
-              <Jury
-                nominations={nominations}
-                active={active}
-                setActive={setActive}
-                current={current}
-                scores={scores}
-                scoreState={scoreState}
-                stats={juryStats}
-                role={role}
-                onScore={saveScore}
-                onMove={moveNomination}
-              />
+              role === "jury" ? (
+                <Jury
+                  nominations={nominations}
+                  active={active}
+                  setActive={setActive}
+                  current={current}
+                  scores={scores}
+                  scoreState={scoreState}
+                  stats={juryStats}
+                  role={role}
+                  onScore={saveScore}
+                  onMove={moveNomination}
+                />
+              ) : (
+                <FinalWaiting phaseRemaining={phaseRemaining} role={role} nominationCount={nominations.length} />
+              )
             ) : null}
             {phase === "awards" ? (
               <Ceremony rows={results} slide={slide} setSlide={setSlide} playing={playing} setPlaying={setPlaying} />
@@ -1262,6 +1266,48 @@ function Voting({ nominations, active, setActive, current, selected, dirty, save
         </button>
       ) : null}
       {current && !canVote ? <Notice>{role === "observer" ? "Наблюдатель видит бюллетень, но не голосует." : "Голосовать могут только участники."}</Notice> : null}
+    </section>
+  );
+}
+
+function FinalWaiting({ phaseRemaining, role, nominationCount }) {
+  const isGuest = role === "observer";
+  return (
+    <section className="final-wait" aria-labelledby="final-wait-title">
+      <div className="final-wait-orbit" aria-hidden="true">
+        <span className="orbit orbit-one" />
+        <span className="orbit orbit-two" />
+        <span className="orbit-core"><Trophy size={34} /></span>
+        <i className="orbit-star star-one" />
+        <i className="orbit-star star-two" />
+        <i className="orbit-star star-three" />
+      </div>
+      <p className="kicker"><span className="live"><i className="live-dot" /> финальная подготовка</span></p>
+      <h1 id="final-wait-title">Пауза перед<br /><em>главным</em></h1>
+      <p className="final-wait-lede">
+        {isGuest
+          ? "Жюри выставляет последние оценки. Совсем скоро здесь появятся результаты и начнётся церемония награждения."
+          : "Твоё голосование завершено. Сейчас жюри определяет победителей — результаты откроются всем одновременно."}
+      </p>
+      <div className="final-wait-status">
+        <span className="final-wait-pulse" />
+        <div>
+          <strong>Жюри подводит итоги</strong>
+          <small>{nominationCount} {nominationCount === 1 ? "номинация" : nominationCount >= 2 && nominationCount <= 4 ? "номинации" : "номинаций"} в работе</small>
+        </div>
+      </div>
+      <div className="final-wait-track" aria-label="Этапы премии">
+        <div className="is-complete"><span>✓</span><small>Голосование</small></div>
+        <i className="is-active" />
+        <div className="is-active"><span>02</span><small>Оценки жюри</small></div>
+        <i />
+        <div><span>03</span><small>Финал</small></div>
+      </div>
+      <div className="final-wait-count">
+        <span>{phaseRemaining !== null && phaseRemaining > 0 ? "До открытия финала" : "Следующий этап"}</span>
+        <strong>{phaseRemaining !== null && phaseRemaining > 0 ? formatRemain(phaseRemaining) : "Церемония награждения"}</strong>
+      </div>
+      <p className="final-wait-foot">Оставайся на связи. Экран обновится автоматически после перехода на следующий этап.</p>
     </section>
   );
 }
