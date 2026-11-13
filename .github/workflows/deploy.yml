@@ -35,15 +35,17 @@ jobs:
           const html = await page.text();
           console.log("PAGE", page.status, page.headers.get("content-type"));
           if (!page.ok) throw new Error("Homepage returned HTTP " + page.status);
-          const match = html.match(/<script[^>]+src=["']([^"']+\.js)["']/i);
-          if (!match) throw new Error("Built JS entrypoint not found in deployed HTML");
-          const assetUrl = new URL(match[1], base);
+          const scripts = [...html.matchAll(/<script\\b([^>]*)src=["']([^"']+\\.js)["'][^>]*>/gi)];
+          const match = scripts.find((entry) => /type=["']module["']/i.test(entry[1]) && !/^https?:/i.test(entry[2]));
+          if (!match) throw new Error("Vite application module entrypoint not found in deployed HTML");
+          const assetUrl = new URL(match[2], base);
           const asset = await fetch(assetUrl, { cache: "no-store" });
           const js = await asset.text();
-          console.log("JS", asset.status, asset.headers.get("content-type"), assetUrl.pathname, "bytes=" + js.length);
+          console.log("APP_JS", asset.status, asset.headers.get("content-type"), assetUrl.pathname, "bytes=" + js.length);
           if (!asset.ok || !/javascript|ecmascript/i.test(asset.headers.get("content-type") || "")) {
-            throw new Error("JavaScript entrypoint is not served as JavaScript");
+            throw new Error("Application JavaScript entrypoint is not served as JavaScript");
           }
-          if (js.length < 1000) throw new Error("JavaScript entrypoint appears empty or incomplete");
-          console.log("FRONTEND_SMOKE_TEST_OK");
+          if (js.length < 1000) throw new Error("Application JavaScript entrypoint appears empty or incomplete");
+          if (!js.includes("Не удалось открыть экран")) throw new Error("Deployed application bundle does not contain the expected MUSIC SLAY UI");
+          console.log("FRONTEND_APP_SMOKE_TEST_OK");
           NODE
