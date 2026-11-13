@@ -1178,7 +1178,7 @@ export function App() {
             <p className="kicker">Подтверждение</p>
             <h2 id="confirm-title">{confirm.title}</h2>
             <p>{confirm.body}</p>
-            <p className="hint">Длительность следующего этапа: {Number(duration) > 0 ? `${duration} ч` : "без таймера"}.</p>
+            <p className="hint">Переход откроет следующий этап для всех участников.</p>
             <div className="modal-actions">
               <button type="button" className="btn ghost" disabled={Boolean(busy)} onClick={() => setConfirm(null)}>Отмена</button>
               <button type="button" className="btn primary" disabled={Boolean(busy)} onClick={() => { const job = confirm.run; setConfirm(null); job?.(); }}>
