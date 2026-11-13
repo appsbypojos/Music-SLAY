@@ -47,6 +47,7 @@ const ADMIN_TABS = [
   { id: "candidates", label: "Кандидаты и топ-5", icon: Users },
   { id: "votes", label: "Голоса", icon: Activity },
   { id: "voters", label: "Голосующие", icon: Users },
+  { id: "jury", label: "Состав жюри", icon: ShieldCheck },
   { id: "phases", label: "Этапы", icon: Gauge },
   { id: "results", label: "Результаты", icon: Trophy },
 ];
@@ -487,6 +488,9 @@ export function App() {
   const [scoreState, setScoreState] = useState({});
   const [adminVotes, setAdminVotes] = useState(seedAudit);
   const [adminVoters, setAdminVoters] = useState([]);
+  const [juryMembers, setJuryMembers] = useState([]);
+  const [juryTelegramId, setJuryTelegramId] = useState("");
+  const [juryDisplayName, setJuryDisplayName] = useState("");
   const [votesUpdated, setVotesUpdated] = useState(null);
   const [results, setResults] = useState([]);
   const [adminTab, setAdminTab] = useState("nominations");
@@ -549,6 +553,25 @@ export function App() {
     const data = await request("/api/results", initRef.current);
     setResults(data.results || []);
   }, [nominations, scores]);
+
+  const refreshJury = useCallback(async () => {
+    if (modeRef.current === "demo" || !initRef.current) return;
+    const data = await request("/api/admin/jury", initRef.current);
+    setJuryMembers(data.members || []);
+  }, []);
+
+  const addJuryMember = () => run("jury-add", async () => {
+    const telegramId = juryTelegramId.trim();
+    if (!/^\\d{1,20}$/.test(telegramId)) throw new Error("Укажи корректный числовой Telegram ID");
+    if (modeRef.current === "demo") setJuryMembers((rows) => [...rows.filter((row) => row.telegram_id !== telegramId), { telegram_id: telegramId, display_name: juryDisplayName.trim() }]);
+    else { await request("/api/admin/jury", initRef.current, { method: "POST", body: JSON.stringify({ telegramId, displayName: juryDisplayName.trim() }) }); await refreshJury(); }
+    setJuryTelegramId(""); setJuryDisplayName("");
+  }, "Член жюри добавлен");
+
+  const removeJuryMember = (telegramId) => run("jury-remove", async () => {
+    if (modeRef.current === "demo") setJuryMembers((rows) => rows.filter((row) => row.telegram_id !== telegramId));
+    else { await request("/api/admin/jury", initRef.current, { method: "DELETE", body: JSON.stringify({ telegramId }) }); await refreshJury(); }
+  }, "Член жюри удалён");
 
   const refreshVotes = useCallback(async () => {
     if (modeRef.current === "demo") {
@@ -682,6 +705,11 @@ export function App() {
   useEffect(() => {
     if (mode === "demo" && phase === "awards") setResults(computeResults(nominations, scores));
   }, [mode, phase, nominations, scores]);
+
+  useEffect(() => {
+    if (role !== "admin" || adminTab !== "jury" || mode !== "live") return;
+    refreshJury().catch((error) => notify(humanError(error), "error"));
+  }, [role, adminTab, mode, refreshJury, notify]);
 
   useEffect(() => {
     if (mode !== "live" || !initData) return;
@@ -1031,6 +1059,14 @@ export function App() {
           setAdminTab={setAdminTab}
           adminVotes={adminVotes}
           adminVoters={adminVoters}
+          juryMembers={juryMembers}
+          juryTelegramId={juryTelegramId}
+          setJuryTelegramId={setJuryTelegramId}
+          juryDisplayName={juryDisplayName}
+          setJuryDisplayName={setJuryDisplayName}
+          onAddJuryMember={addJuryMember}
+          onRemoveJuryMember={removeJuryMember}
+          onRefreshJury={() => refreshJury().catch((error) => notify(humanError(error), "error"))}
           votesUpdated={votesUpdated}
           scheduleAt={scheduleAt}
           setScheduleAt={setScheduleAt}
@@ -1540,7 +1576,7 @@ function Jury({ nominations, active, setActive, current, scores, scoreState, sta
 function AdminConsole(props) {
   const {
     user, role, phaseMeta, phaseEndsAt, phaseRemaining, nominations, draft, setDraft, adminTab, setAdminTab,
-    adminVotes, adminVoters, votesUpdated, scheduleAt, setScheduleAt, busy, results, nextPhase, top5Ready, missingTop5,
+    adminVotes, adminVoters, juryMembers, juryTelegramId, setJuryTelegramId, juryDisplayName, setJuryDisplayName, onAddJuryMember, onRemoveJuryMember, onRefreshJury, votesUpdated, scheduleAt, setScheduleAt, busy, results, nextPhase, top5Ready, missingTop5,
     onSaveNominations, onSaveTop5, onAskPhase, onSchedulePhase, onRefreshVotes, onRefreshResults, slide, setSlide, playing, setPlaying, phase,
   } = props;
   return (
@@ -1689,6 +1725,22 @@ function AdminConsole(props) {
                   </tbody>
                 </table>
               </div>
+            </section>
+          ) : null}
+
+          {adminTab === "jury" ? (
+            <section className="panel">
+              <header className="panel-head"><h2>Состав жюри</h2><p>Добавляй участников по числовому Telegram ID. После добавления им нужно заново открыть мини-приложение, чтобы получить роль жюри.</p></header>
+              <div className="jury-add-form">
+                <label>Telegram ID<input inputMode="numeric" placeholder="Например, 123456789" value={juryTelegramId} onChange={(event) => setJuryTelegramId(event.target.value.replace(/[^0-9]/g, ""))} /></label>
+                <label>Имя для списка (необязательно)<input maxLength={80} placeholder="Имя участника" value={juryDisplayName} onChange={(event) => setJuryDisplayName(event.target.value)} /></label>
+                <button type="button" className="btn primary" disabled={Boolean(busy) || !juryTelegramId.trim()} onClick={onAddJuryMember}>{busy === "jury-add" ? <LoaderCircle className="spin" size={16} /> : <Users size={16} />} Добавить в жюри</button>
+              </div>
+              <div className="live-line"><span>{juryMembers.length} членов жюри</span><IconButton label="Обновить состав жюри" onClick={onRefreshJury}><RefreshCw size={15} /></IconButton></div>
+              <div className="table-wrap"><table className="audit">
+                <thead><tr><th>#</th><th>Имя</th><th>Telegram ID</th><th></th></tr></thead>
+                <tbody>{juryMembers.length ? juryMembers.map((member, index) => <tr key={member.telegram_id}><td>{index + 1}</td><td>{member.display_name || "—"}</td><td>{member.telegram_id}</td><td><button type="button" className="btn danger slim" disabled={Boolean(busy)} onClick={() => onRemoveJuryMember(member.telegram_id)}>Убрать</button></td></tr>) : <tr><td colSpan={4} className="table-empty">Состав жюри пока пуст</td></tr>}</tbody>
+              </table></div>
             </section>
           ) : null}
 
