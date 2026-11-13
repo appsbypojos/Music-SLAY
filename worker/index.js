@@ -284,6 +284,33 @@ export default {
           });
           return json({ ok: true }, 200, sameOrigin);
         }
+        if (url.pathname === "/api/game/leaderboard" && request.method === "GET") {
+          const slays = await dbRequest(env, "slays?select=id,current_phase&order=created_at.desc&limit=1");
+          if (!slays?.length || slays[0].current_phase !== "jury") return json({ leaders: [] }, 200, sameOrigin);
+          const leaders = await dbRequest(env, `jury_waiting_game_scores?slay_id=eq.${slays[0].id}&select=telegram_id,display_name,score&order=score.desc,updated_at.asc&limit=5`);
+          return json({ leaders }, 200, sameOrigin);
+        }
+
+        if (url.pathname === "/api/game/score" && request.method === "POST") {
+          if (!["participant", "observer"].includes(auth.role)) return json({ error: "forbidden" }, 403, sameOrigin);
+          const body = await request.json();
+          const score = Number(body?.score);
+          if (!Number.isInteger(score) || score < 1 || score > 1000000) return json({ error: "invalid_score" }, 400, sameOrigin);
+          const slays = await dbRequest(env, "slays?select=id,current_phase&order=created_at.desc&limit=1");
+          if (!slays?.length) return json({ error: "slay_not_found" }, 404, sameOrigin);
+          if (slays[0].current_phase !== "jury") return json({ error: "phase_closed" }, 409, sameOrigin);
+          const telegramId = String(auth.user.id);
+          const existing = await dbRequest(env, `jury_waiting_game_scores?slay_id=eq.${slays[0].id}&telegram_id=eq.${telegramId}&select=score&limit=1`);
+          const bestScore = Math.max(score, Number(existing?.[0]?.score || 0));
+          const displayName = String(auth.user.first_name || body.displayName || auth.user.username || "Игрок").trim().slice(0, 48) || "Игрок";
+          await dbRequest(env, "jury_waiting_game_scores?on_conflict=slay_id,telegram_id", {
+            method: "POST",
+            headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+            body: JSON.stringify({ slay_id: slays[0].id, telegram_id: telegramId, display_name: displayName, score: bestScore, updated_at: new Date().toISOString() })
+          });
+          return json({ ok: true, bestScore }, 200, sameOrigin);
+        }
+
         if (url.pathname === "/api/results" && request.method === "GET") {
           const slays = await dbRequest(env, "slays?select=id,title,current_phase&order=created_at.desc&limit=1");
           if (!slays?.length) return json({ results: [] }, 200, sameOrigin);
