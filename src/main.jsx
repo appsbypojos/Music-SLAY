@@ -1428,9 +1428,10 @@ function TrophyRunner({ initData, user, mode }) {
 
 function FinalWaiting({ phaseRemaining, role, nominationCount, initData, user, mode }) {
   const isGuest = role === "observer";
+  const [secretOpen, setSecretOpen] = useState(false);
   return (
     <section className="final-wait" aria-labelledby="final-wait-title">
-      <div className="final-wait-orbit" aria-hidden="true">
+      <div className="final-wait-orbit">
         <span className="orbit orbit-one" />
         <span className="orbit orbit-two" />
         <button type="button" className="orbit-core" aria-label="Открыть секретную игру" title="Секрет? Нажми на кубок" onClick={() => setSecretOpen((value) => !value)}><Trophy size={34} /></button>
