@@ -35,12 +35,12 @@ jobs:
           const html = await page.text();
           console.log("PAGE", page.status, page.headers.get("content-type"));
           if (!page.ok) throw new Error("Homepage returned HTTP " + page.status);
-          const scripts = [...html.matchAll(/<script\\b([^>]*)>/gi)];
+          const scripts = [...html.matchAll(/<script\b([^>]*)>/gi)];
           const match = scripts.map((entry) => {
             const attrs = entry[1];
-            const src = attrs.match(/\\bsrc=["']([^"']+)["']/i)?.[1];
+            const src = attrs.match(/\bsrc=["']([^"']+)["']/i)?.[1];
             return { attrs, src };
-          }).find((entry) => entry.src && /\\.js(?:[?#]|$)/i.test(entry.src) && /\\btype=["']module["']/i.test(entry.attrs) && !/^https?:/i.test(entry.src));
+          }).find((entry) => entry.src && /\.js(?:[?#]|$)/i.test(entry.src) && /\btype=["']module["']/i.test(entry.attrs) && !/^https?:/i.test(entry.src));
           if (!match) throw new Error("Vite application module entrypoint not found in deployed HTML: " + html.slice(0, 1200));
           const assetUrl = new URL(match.src, base);
           const asset = await fetch(assetUrl, { cache: "no-store" });
