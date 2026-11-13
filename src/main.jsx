@@ -904,6 +904,28 @@ export function App() {
     });
   }
 
+  function scheduleNextPhase() {
+    if (!nextPhase || !scheduleAt) {
+      notify("Укажи дату и время перехода", "error");
+      return;
+    }
+    return run("phase-schedule", async () => {
+      const target = new Date(scheduleAt);
+      if (!Number.isFinite(target.getTime()) || target.getTime() < Date.now() + 60000 || target.getTime() > Date.now() + 31622400000) {
+        throw new Error("Выбери дату минимум через минуту и не дальше чем через год");
+      }
+      if (modeRef.current === "demo") {
+        setPhaseEndsAt(target.toISOString());
+        return;
+      }
+      await request("/api/admin/schedule-phase", initRef.current, {
+        method: "POST",
+        body: JSON.stringify({ at: target.toISOString() }),
+      });
+      await refreshState();
+    }, "Автоматический переход запланирован");
+  }
+
   function changePhase(nextId) {
     return run("phase", async () => {
       const seconds = durationSeconds();
@@ -1459,13 +1481,18 @@ function AdminConsole(props) {
               </div>
               <p className="label">Автоматический переход по расписанию</p>
               <label className="hours" htmlFor="phase-schedule">
-                <input id="phase-schedule" type="datetime-local" step="60" min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} />
+                <input id="phase-schedule" type="datetime-local" step="60" min={new Date(Date.now() + 60000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} />
                 <span>Дата и местное время. Когда срок наступит, сервер автоматически откроет следующий этап. Оставь пустым для ручного перехода.</span>
               </label>
               {nextPhase ? (
-                <button type="button" className="btn primary block" disabled={Boolean(busy) || (nextPhase.id === "voting" && !top5Ready)} onClick={() => onAskPhase(nextPhase.id)}>
-                  Открыть «{nextPhase.label}»
-                </button>
+                <>
+                  <button type="button" className="btn ghost block" disabled={Boolean(busy) || !scheduleAt || (nextPhase.id === "voting" && !top5Ready)} onClick={scheduleNextPhase}>
+                    Запланировать переход на «{nextPhase.label}»
+                  </button>
+                  <button type="button" className="btn primary block" disabled={Boolean(busy) || (nextPhase.id === "voting" && !top5Ready)} onClick={() => onAskPhase(nextPhase.id)}>
+                    Открыть «{nextPhase.label}» сейчас
+                  </button>
+                </>
               ) : <Notice>Финальный этап. Дальше переходить некуда.</Notice>}
               {nextPhase?.id === "voting" && !top5Ready ? (
                 <p className="hint">Нет топ-5: {missingTop5.join(", ") || "проверь номинации"}.</p>
