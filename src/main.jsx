@@ -1010,6 +1010,7 @@ export function App() {
           adminTab={adminTab}
           setAdminTab={setAdminTab}
           adminVotes={adminVotes}
+          adminVoters={adminVoters}
           votesUpdated={votesUpdated}
           duration={duration}
           setDuration={setDuration}
