@@ -46,6 +46,7 @@ const ADMIN_TABS = [
   { id: "nominations", label: "Номинации", icon: ListMusic },
   { id: "candidates", label: "Кандидаты и топ-5", icon: Users },
   { id: "votes", label: "Голоса", icon: Activity },
+  { id: "voters", label: "Голосующие", icon: Users },
   { id: "phases", label: "Этапы", icon: Gauge },
   { id: "results", label: "Результаты", icon: Trophy },
 ];
@@ -485,6 +486,7 @@ export function App() {
   const [scores, setScores] = useState(seedScores);
   const [scoreState, setScoreState] = useState({});
   const [adminVotes, setAdminVotes] = useState(seedAudit);
+  const [adminVoters, setAdminVoters] = useState([]);
   const [votesUpdated, setVotesUpdated] = useState(null);
   const [results, setResults] = useState([]);
   const [adminTab, setAdminTab] = useState("nominations");
@@ -555,8 +557,9 @@ export function App() {
       return;
     }
     if (!initRef.current) return;
-    const data = await request("/api/admin/votes", initRef.current);
+    const [data, votersData] = await Promise.all([request("/api/admin/votes", initRef.current), request("/api/admin/voters", initRef.current)]);
     setAdminVotes(data.votes || []);
+    setAdminVoters(votersData.voters || []);
     setVotesUpdated(Date.now());
   }, [nominations, committed]);
 
@@ -1292,7 +1295,7 @@ function Jury({ nominations, active, setActive, current, scores, scoreState, sta
 function AdminConsole(props) {
   const {
     user, role, phaseMeta, phaseEndsAt, phaseRemaining, nominations, draft, setDraft, adminTab, setAdminTab,
-    adminVotes, votesUpdated, duration, setDuration, busy, results, nextPhase, top5Ready, missingTop5,
+    adminVotes, adminVoters, votesUpdated, duration, setDuration, busy, results, nextPhase, top5Ready, missingTop5,
     onSaveNominations, onSaveTop5, onAskPhase, onRefreshVotes, onRefreshResults, slide, setSlide, playing, setPlaying, phase,
   } = props;
   return (
@@ -1411,6 +1414,33 @@ function AdminConsole(props) {
                         <td>{row.created_at ? new Date(row.created_at).toLocaleString("ru-RU") : "—"}</td>
                       </tr>
                     )) : <tr><td colSpan={5} className="table-empty">Голосов пока нет</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          {adminTab === "voters" ? (
+            <section className="panel">
+              <header className="panel-head">
+                <h2>Голосующие</h2>
+                <p>Уникальные участники. Строки отсортированы по общему числу отданных голосов.</p>
+              </header>
+              <div className="live-line">
+                <span>{adminVoters.length} участников</span>
+                <span>обновлено {votesUpdated ? new Date(votesUpdated).toLocaleTimeString("ru-RU") : "—"}</span>
+                <IconButton label="Обновить голосующих" onClick={onRefreshVotes}><RefreshCw size={15} /></IconButton>
+              </div>
+              <div className="table-wrap">
+                <table className="audit">
+                  <thead><tr><th>#</th><th>Telegram</th><th>Голосов</th><th>Последний голос</th></tr></thead>
+                  <tbody>
+                    {adminVoters.length ? adminVoters.map((row, index) => (
+                      <tr key={row.voter || index}>
+                        <td>{index + 1}</td><td>{row.voter || "—"}</td><td><b>{row.vote_count ?? 0}</b></td>
+                        <td>{row.last_vote_at ? new Date(row.last_vote_at).toLocaleString("ru-RU") : "—"}</td>
+                      </tr>
+                    )) : <tr><td colSpan={4} className="table-empty">Голосующих пока нет</td></tr>}
                   </tbody>
                 </table>
               </div>
