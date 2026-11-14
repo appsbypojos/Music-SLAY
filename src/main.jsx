@@ -1237,10 +1237,10 @@ function Preparation({ now }) {
   return (
     <section className="poster">
       <p className="kicker">Подготовка</p>
-      <h1>Премия<br />откроется<br /><em>7 декабря</em></h1>
+      <h1>Премия<br />откроется<br /><em>1 декабря</em></h1>
       <p className="lede">Сцена ещё собирается. Когда откроют кандидатов, здесь можно будет предлагать имена в каждой номинации.</p>
       <Countdown now={now} />
-      <p className="fine">Старт церемонии · 7 декабря 2026, 00:00 МСК</p>
+      <p className="fine">Старт церемонии · 1 декабря 2026, 00:00 МСК</p>
     </section>
   );
 }
