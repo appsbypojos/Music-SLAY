@@ -21,7 +21,9 @@
  * - Права пользователя приходят от Worker после проверки Telegram initData.
  * - Данные seed* используются только как демонстрационные/резервные данные;
  *   реальные изменения сохраняются сервером в Supabase.
- */\n\n// @ts-nocheck
+ */
+
+// @ts-nocheck
 import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -50,7 +52,8 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-// Этапы премии и их идентификаторы — должны совпадать с серверной логикой.\nconst PHASES = [
+// Этапы премии и их идентификаторы — должны совпадать с серверной логикой.
+const PHASES = [
   { id: "preparation", label: "Подготовка", short: "Старт" },
   { id: "candidates", label: "Кандидаты", short: "Имена" },
   { id: "voting", label: "Голосование", short: "Голос" },
@@ -107,7 +110,8 @@ const ERRORS = {
 const DEADLINE = new Date("2026-12-01T00:00:00+03:00");
 const HOUR_PRESETS = [0, 6, 12, 24, 48, 72];
 
-// Небольшие утилиты форматирования, валидации и подготовки данных интерфейса.\nfunction cx(...parts) {
+// Небольшие утилиты форматирования, валидации и подготовки данных интерфейса.
+function cx(...parts) {
   return parts.filter(Boolean).join(" ");
 }
 
@@ -194,7 +198,8 @@ function haptic(kind) {
   }
 }
 
-// Демонстрационные данные для стартового/резервного отображения; не источник production-истины.\nfunction seedNominations() {
+// Демонстрационные данные для стартового/резервного отображения; не источник production-истины.
+function seedNominations() {
   const rows = [
     ["artist", "Артист года", [["n1a", "МАЙЯ ВОЛЬТ", 42], ["n1b", "СЕВЕРНЫЙ ПОРТ", 37], ["n1c", "КИРИЛЛ ДЫМ", 31], ["n1d", "АУРА 404", 28], ["n1e", "ТИХИЙ РЕЙВ", 22], ["n1f", "ЛУНА ПАРК", 14], ["n1g", "СОФТ ГОЛД", 9]]],
     ["track", "Трек года", [["n2a", "Ночной контур", 51], ["n2b", "Стекло и мёд", 44], ["n2c", "Пульс города", 33], ["n2d", "Тихий рейс", 27], ["n2e", "После полуночи", 19], ["n2f", "Белый шум", 11]]],
@@ -234,6 +239,7 @@ function seedAudit() {
   ];
 }
 
+// Клиентский расчёт для отображения; источник опубликованных итогов — серверный API.
 function computeResults(nominations, scores) {
   return nominations.map((nomination) => {
     const pool = ballotOf(nomination);
@@ -273,7 +279,8 @@ function personalVoteRows(nominations, votes) {
   return rows;
 }
 
-// Единая точка HTTP-доступа к Worker API: Telegram initData передаётся в заголовке.\nasync function request(path, initData, options = {}) {
+// Единая точка HTTP-доступа к Worker API: Telegram initData передаётся в заголовке.
+async function request(path, initData, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
@@ -306,7 +313,8 @@ function mapState(data) {
   };
 }
 
-// Переиспользуемые визуальные компоненты интерфейса.\nfunction IconButton({ label, children, ...props }) {
+// Переиспользуемые визуальные компоненты интерфейса.
+function IconButton({ label, children, ...props }) {
   return (
     <button type="button" className="icon-btn" aria-label={label} {...props}>
       {children}
@@ -502,7 +510,9 @@ class AppErrorBoundary extends Component {
   }
 }
 
-export // Корневой компонент: авторизация, загрузка данных, состояние приложения и маршрутизация по ролям.\nfunction App() {
+export // Корневой компонент: авторизация, загрузка данных, состояние приложения и маршрутизация по ролям.
+// Корневой компонент: Telegram-сессия, загрузка состояния и выбор интерфейса по роли.
+function App() {
   const initialNoms = useMemo(() => seededNominations(), []);
   const [mode, setMode] = useState("demo");
   const [initData, setInitData] = useState("");
@@ -1639,6 +1649,7 @@ function Jury({ nominations, active, setActive, current, scores, scoreState, sta
   );
 }
 
+// Административная консоль: вкладки управления премией и защищённые admin-запросы.
 function AdminConsole(props) {
   const {
     user, role, phaseMeta, phaseEndsAt, phaseRemaining, nominations, draft, setDraft, adminTab, setAdminTab,
