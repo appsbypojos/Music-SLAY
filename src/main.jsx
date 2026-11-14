@@ -130,6 +130,7 @@ function sameIds(a = [], b = []) {
   return b.every((id) => set.has(id));
 }
 
+// Разбирает введённый список имён: нормализует пробелы, убирает повторы и ограничивает число записей.
 function parseNames(value) {
   const seen = new Set();
   const names = [];
@@ -145,6 +146,7 @@ function parseNames(value) {
   return names;
 }
 
+// Формирует изменения топ-5 на основе популярности; сами изменения сохраняет серверный API.
 function top5Patches(nominations) {
   const patches = [];
   for (const nomination of nominations) {
@@ -294,6 +296,7 @@ async function request(path, initData, options = {}) {
   return data;
 }
 
+// Приводит JSON-ответ Worker к форме, которую используют React-компоненты.
 function mapState(data) {
   const source = data.nominations || [];
   return {
@@ -1266,6 +1269,7 @@ function namesLabel(count) {
   return `Отправлено ${count} ${word}`;
 }
 
+// Экраны по ролям/этапам: каждый компонент отвечает только за отображение и пользовательские действия.
 function Preparation({ now }) {
   return (
     <section className="poster">
@@ -1601,6 +1605,7 @@ function FinalWaiting({ phaseRemaining, role, nominationCount, initData, user, m
   );
 }
 
+// Интерфейс члена жюри: оценивание кандидатов из утверждённого топ-5 и дополнительные активности.
 function Jury({ nominations, active, setActive, current, scores, scoreState, stats, role, onScore, onMove }) {
   const ballot = current ? ballotOf(current) : [];
   const canScore = role === "jury";
@@ -1650,6 +1655,7 @@ function Jury({ nominations, active, setActive, current, scores, scoreState, sta
 }
 
 // Административная консоль: вкладки управления премией и защищённые admin-запросы.
+// Панель администратора: управление номинациями, участниками, жюри, этапами и итогами.
 function AdminConsole(props) {
   const {
     user, role, phaseMeta, phaseEndsAt, phaseRemaining, nominations, draft, setDraft, adminTab, setAdminTab,
