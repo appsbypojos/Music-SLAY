@@ -61,3 +61,49 @@ GitHub Actions deploys on pushes to `main`. Configure repository Actions secrets
 - Not yet implemented: admin UI for creating/editing nominations, automatic transition to the next phase after expiry (expired phases reject writes), award calculation/publication, and production slideshow driven by published winners.
 - No scoring formula is assumed. The previously discussed weighting needs explicit approval before implementation.
 - Test candidate names remain placeholders; replace them with approved candidates before opening the public stages.
+
+
+## Карта проекта и как с ним работать
+
+### Основные файлы
+- `index.html` — HTML-точка входа. Подключает Telegram WebApp SDK и контейнер React.
+- `src/main.jsx` — интерфейс, клиентская логика, состояние экранов и обращения к API Worker.
+- `src/styles.css` — внешний вид приложения, адаптивность и анимации.
+- `worker/index.js` — серверные API-маршруты, проверка Telegram, роли, доступ к Supabase и выдача frontend.
+- `supabase/migrations/` — SQL-миграции: структура таблиц, индексы, RLS и серверные RPC.
+- `wrangler.toml` — имя Worker, путь к собранным assets, cron и публичные переменные.
+- `package.json` — зависимости и команды npm.
+- `.github/workflows/deploy.yml` — автоматическая сборка, публикация в Cloudflare и smoke-проверка сайта.
+
+### Быстрый старт для разработчика
+1. Установите Node.js 22 и npm.
+2. Выполните `npm install`.
+3. Запустите `npm run dev` для локальной разработки интерфейса.
+4. Выполните `npm run build`, чтобы проверить production-сборку.
+5. Для локального Worker используйте `npx wrangler dev`; для этого потребуются настроенные секреты/переменные Cloudflare и доступ к Supabase.
+6. Production-деплой запускается автоматически при push в `main`. Результат смотрите во вкладке Actions.
+
+### Как устроен пользовательский сценарий
+1. Пользователь открывает Mini App внутри Telegram.
+2. Frontend передаёт Telegram `initData` в Worker.
+3. Worker проверяет подпись, срок действия и назначает роль по серверным настройкам/таблицам.
+4. Frontend загружает состояние через `GET /api/state`.
+5. Участник предлагает кандидатов и голосует; жюри выставляет оценки; администратор управляет этапами и составом жюри.
+6. Worker проверяет роль, этап и входные данные, затем вызывает Supabase REST/RPC.
+7. Результаты формируются серверным endpoint `GET /api/results`.
+
+### Как пользоваться приложением
+- **Участник:** открыть Mini App в Telegram, выбрать номинацию, отправить имена на этапе кандидатов и выбрать до пяти кандидатов на этапе голосования.
+- **Жюри:** открыть приложение с Telegram-аккаунта, включённого администратором в состав жюри; на этапе жюри выставлять оценки кандидатам из топ-5.
+- **Наблюдатель:** получает доступ на чтение, без отправки кандидатов, голосования и управления этапами.
+- **Администратор:** управляет премией через вкладки «Номинации», «Кандидаты и топ-5», «Голоса», «Голосующие», «Состав жюри», «Этапы» и «Результаты». Переходы этапов последовательные; перед открытием голосования требуется зафиксировать топ-5 во всех номинациях. Действие «Начать заново» сбрасывает текущую премию — перед подтверждением проверьте, что это действительно нужно.
+
+### Важные правила безопасности
+- Не добавляйте секреты в GitHub, frontend или `VITE_*` переменные.
+- `SUPABASE_SERVICE_ROLE_KEY` и `TELEGRAM_BOT_TOKEN` хранятся только в Cloudflare Worker Secrets.
+- Не отключайте RLS и не создавайте публичные политики записи ради обхода API.
+- Все изменения данных должны проходить через Worker, где проверяются Telegram-сессия и роль.
+- Перед изменением схемы БД создавайте новую SQL-миграцию; не редактируйте уже применённую миграцию без отдельного плана восстановления.
+
+### Текущие ограничения
+Список реализованного и ещё не реализованного функционала приведён выше в разделе «Current implementation boundary». В частности, не считайте автоматический переход по окончании таймера или полноценную публикацию наград реализованными, пока это явно не добавлено и не проверено.
