@@ -31,26 +31,56 @@ jobs:
       - name: Verify deployed frontend entrypoint
         run: |
           node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+
           const base = "https://music-slay-2026.vda45lol.workers.dev";
-          const page = await fetch(base + "/?smoke=" + Date.now(), { cache: "no-store" });
-          const html = await page.text();
-          console.log("PAGE", page.status, page.headers.get("content-type"));
-          if (!page.ok) throw new Error("Homepage returned HTTP " + page.status);
-          const scripts = [...html.matchAll(/<script\b([^>]*)>/gi)];
-          const match = scripts.map((entry) => {
-            const attrs = entry[1];
-            const src = attrs.match(/\bsrc=["']([^"']+)["']/i)?.[1];
-            return { attrs, src };
-          }).find((entry) => entry.src && /\.js(?:[?#]|$)/i.test(entry.src) && /\btype=["']module["']/i.test(entry.attrs) && !/^https?:/i.test(entry.src));
-          if (!match) throw new Error("Vite application module entrypoint not found in deployed HTML: " + html.slice(0, 1200));
-          const assetUrl = new URL(match.src, base);
-          const asset = await fetch(assetUrl, { cache: "no-store" });
-          const js = await asset.text();
-          console.log("APP_JS", asset.status, asset.headers.get("content-type"), assetUrl.pathname, "bytes=" + js.length);
-          if (!asset.ok || !/javascript|ecmascript/i.test(asset.headers.get("content-type") || "")) {
-            throw new Error("Application JavaScript entrypoint is not served as JavaScript");
+          const builtHtml = await readFile("dist/index.html", "utf8");
+          const builtScript = [...builtHtml.matchAll(/<script\\b([^>]*)>/gi)]
+            .map((entry) => {
+              const src = entry[1].match(/\\bsrc=["']([^"']+)["']/i)?.[1];
+              return { attrs: entry[1], src };
+            })
+            .find((entry) => entry.src && /\\.js(?:[?#]|$)/i.test(entry.src) && /\\btype=["']module["']/i.test(entry.attrs) && !/^https?:/i.test(entry.src));
+
+          if (!builtScript) throw new Error("Built Vite JavaScript entrypoint not found in dist/index.html");
+          const expectedPath = new URL(builtScript.src, base).pathname;
+          console.log("EXPECTED_APP_JS", expectedPath);
+
+          let lastFailure = "deployment has not propagated";
+          for (let attempt = 1; attempt <= 18; attempt++) {
+            const page = await fetch(base + "/?smoke=" + Date.now(), {
+              cache: "no-store",
+              headers: { "Cache-Control": "no-cache" }
+            });
+            const html = await page.text();
+            const match = [...html.matchAll(/<script\\b([^>]*)>/gi)]
+              .map((entry) => {
+                const attrs = entry[1];
+                const src = attrs.match(/\\bsrc=["']([^"']+)["']/i)?.[1];
+                return { attrs, src };
+              })
+              .find((entry) => entry.src && /\\.js(?:[?#]|$)/i.test(entry.src) && /\\btype=["']module["']/i.test(entry.attrs) && !/^https?:/i.test(entry.src));
+
+            console.log("ATTEMPT", attempt, "PAGE", page.status, page.headers.get("content-type"), "SCRIPT", match?.src || "missing");
+
+            if (page.ok && match && new URL(match.src, base).pathname === expectedPath) {
+              const assetUrl = new URL(match.src, base);
+              const asset = await fetch(assetUrl, { cache: "no-store", headers: { "Cache-Control": "no-cache" } });
+              const js = await asset.text();
+              const contentType = asset.headers.get("content-type") || "";
+              console.log("APP_JS", asset.status, contentType, assetUrl.pathname, "bytes=" + js.length);
+
+              if (asset.ok && /javascript|ecmascript/i.test(contentType) && js.length > 1000 && js.includes("Не удалось открыть экран")) {
+                console.log("FRONTEND_APP_SMOKE_TEST_OK");
+                process.exit(0);
+              }
+              lastFailure = "expected bundle returned invalid response: " + asset.status + " " + contentType;
+            } else {
+              lastFailure = "homepage has not switched to this build's asset manifest yet";
+            }
+
+            if (attempt < 18) await new Promise((resolve) => setTimeout(resolve, 5000));
           }
-          if (js.length < 1000) throw new Error("Application JavaScript entrypoint appears empty or incomplete");
-          if (!js.includes("Не удалось открыть экран")) throw new Error("Deployed application bundle does not contain the expected MUSIC SLAY UI");
-          console.log("FRONTEND_APP_SMOKE_TEST_OK");
+
+          throw new Error("Frontend deployment verification failed after 90 seconds: " + lastFailure);
           NODE
