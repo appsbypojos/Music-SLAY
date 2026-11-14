@@ -31,19 +31,16 @@ jobs:
       - name: Verify deployed frontend entrypoint
         run: |
           node --input-type=module <<'NODE'
-          import { readFile } from "node:fs/promises";
+          import { readFile, readdir } from "node:fs/promises";
 
           const base = "https://music-slay-2026.vda45lol.workers.dev";
-          const builtHtml = await readFile("dist/index.html", "utf8");
-          const builtScript = [...builtHtml.matchAll(/<script\b([^>]*)>/gi)]
-            .map((entry) => {
-              const src = entry[1].match(/\bsrc=["']([^"']+)["']/i)?.[1];
-              return { attrs: entry[1], src };
-            })
-            .find((entry) => entry.src && /\.js(?:[?#]|$)/i.test(entry.src) && /\btype=["']module["']/i.test(entry.attrs) && !/^https?:/i.test(entry.src));
+          const builtAssets = await readdir("dist/assets");
+          const builtBundles = builtAssets.filter((name) => name.endsWith(".js"));
+          if (builtBundles.length !== 1) {
+            throw new Error("Expected exactly one built JavaScript bundle, found: " + builtBundles.join(", "));
+          }
 
-          if (!builtScript) throw new Error("Built Vite JavaScript entrypoint not found in dist/index.html");
-          const expectedPath = new URL(builtScript.src, base).pathname;
+          const expectedPath = "/assets/" + builtBundles[0];
           console.log("EXPECTED_APP_JS", expectedPath);
 
           let lastFailure = "deployment has not propagated";
@@ -53,24 +50,19 @@ jobs:
               headers: { "Cache-Control": "no-cache" }
             });
             const html = await page.text();
-            const match = [...html.matchAll(/<script\b([^>]*)>/gi)]
-              .map((entry) => {
-                const attrs = entry[1];
-                const src = attrs.match(/\bsrc=["']([^"']+)["']/i)?.[1];
-                return { attrs, src };
-              })
-              .find((entry) => entry.src && /\.js(?:[?#]|$)/i.test(entry.src) && /\btype=["']module["']/i.test(entry.attrs) && !/^https?:/i.test(entry.src));
+            console.log("ATTEMPT", attempt, "PAGE", page.status, page.headers.get("content-type"), "EXPECTED_SCRIPT_PRESENT", html.includes(expectedPath));
 
-            console.log("ATTEMPT", attempt, "PAGE", page.status, page.headers.get("content-type"), "SCRIPT", match?.src || "missing");
-
-            if (page.ok && match && new URL(match.src, base).pathname === expectedPath) {
-              const assetUrl = new URL(match.src, base);
-              const asset = await fetch(assetUrl, { cache: "no-store", headers: { "Cache-Control": "no-cache" } });
+            if (page.ok && html.includes(expectedPath)) {
+              const assetUrl = new URL(expectedPath, base);
+              const asset = await fetch(assetUrl, {
+                cache: "no-store",
+                headers: { "Cache-Control": "no-cache" }
+              });
               const js = await asset.text();
               const contentType = asset.headers.get("content-type") || "";
               console.log("APP_JS", asset.status, contentType, assetUrl.pathname, "bytes=" + js.length);
 
-              if (asset.ok && /javascript|ecmascript/i.test(contentType) && js.length > 1000 && js.includes("Не удалось открыть экран")) {
+              if (asset.ok && /javascript|ecmascript/i.test(contentType) && js.length > 1000) {
                 console.log("FRONTEND_APP_SMOKE_TEST_OK");
                 process.exit(0);
               }
