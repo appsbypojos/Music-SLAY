@@ -15,7 +15,10 @@
  * общие цвета. Селекторы компонентов ищите по названию CSS-класса из JSX.
  * Не удаляйте prefers-reduced-motion: он отключает интенсивную анимацию
  * для пользователей, предпочитающих уменьшенное движение.
- */\n\n:root {
+ */
+
+/* Глобальные дизайн-токены: базовые цвета, шрифты и общие значения интерфейса. */
+:root {
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Orbitron", "Inter", sans-serif;
   --color-ink: #07060b;
@@ -503,7 +506,8 @@ textarea:focus, input:focus { border-color: #7c5cff; }
 .runner-leader strong { overflow:hidden; color:#e5dfec; font-size:12px; font-weight:550; text-overflow:ellipsis; white-space:nowrap; }
 .runner-leader > b { color:#f0d7a1; font-size:13px; font-variant-numeric:tabular-nums; }
 .runner-empty { margin:12px 0 2px; text-align:center; }
-@media(max-width:700px) { .runner-panel { width:100%; padding:18px; } .runner-screen canvas { min-height:150px; object-fit:fill; } }\n@media(max-width:380px) { .runner-panel { padding:13px; } .runner-head h2 { font-size:20px; } }
+@media(max-width:700px) { .runner-panel { width:100%; padding:18px; } .runner-screen canvas { min-height:150px; object-fit:fill; } }
+@media(max-width:380px) { .runner-panel { padding:13px; } .runner-head h2 { font-size:20px; } }
 
 
 .final-secret-screen {
