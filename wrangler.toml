@@ -1,3 +1,7 @@
+# Конфигурация Cloudflare Wrangler для production Worker.
+# main — серверный обработчик; assets.directory — папка, создаваемая командой npm run build.
+# binding ASSETS позволяет Worker отдавать React-приложение.
+# run_worker_first направляет API и корневой запрос через Worker до обработки assets.
 name = "music-slay-2026"
 main = "worker/index.js"
 compatibility_date = "2026-11-10"
