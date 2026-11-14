@@ -1,4 +1,22 @@
-const json = (data, status = 200, origin = null) => new Response(JSON.stringify(data), {
+/*
+ * MUSIC SLAY — серверная часть Cloudflare Worker.
+ *
+ * Worker является доверенной границей между Telegram, браузером и Supabase:
+ * - проверяет подпись и срок действия Telegram WebApp initData;
+ * - определяет роль пользователя на сервере (admin / jury / participant / observer);
+ * - проверяет права и текущий этап перед каждым защищённым действием;
+ * - читает и изменяет данные через Supabase REST/RPC с SERVICE ROLE KEY;
+ * - отдаёт статические файлы React-приложения через binding ASSETS;
+ * - обслуживает периодические задачи, если они добавлены в scheduled().
+ *
+ * ВАЖНО: секреты задаются в Cloudflare Worker → Settings → Variables and Secrets.
+ * Никогда не переносите SUPABASE_SERVICE_ROLE_KEY или TELEGRAM_BOT_TOKEN
+ * в src/, Vite-переменные с префиксом VITE_ или публичные файлы.
+ *
+ * ЛОКАЛЬНЫЙ ЗАПУСК: npm install, затем npx wrangler dev.
+ * ПРОВЕРКА/СБОРКА: npm run build. Публикация: npx wrangler deploy
+ * (обычно production публикуется GitHub Actions при push в main).
+ */\n\nconst json = (data, status = 200, origin = null) => new Response(JSON.stringify(data), {
   status,
   headers: {
     "Content-Type": "application/json; charset=utf-8",
@@ -21,7 +39,7 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-async function verifyTelegramInitData(initData, botToken) {
+// Проверка Telegram initData: сервер самостоятельно проверяет HMAC-подпись и freshness.\nasync function verifyTelegramInitData(initData, botToken) {
   if (!initData || !botToken || initData.length > 8192) return null;
   const params = new URLSearchParams(initData);
   const receivedHash = params.get("hash");
@@ -49,7 +67,7 @@ function configuredRole(id, env) {
   return "participant";
 }
 
-async function dbRequest(env, path, options = {}) {
+// Тонкая обёртка над Supabase REST/RPC; использует только серверные credentials Worker.\nasync function dbRequest(env, path, options = {}) {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("database_not_configured");
   const response = await fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${path}`, {
     ...options,
@@ -72,7 +90,7 @@ async function dbRequest(env, path, options = {}) {
   return data;
 }
 
-async function authenticate(request, env) {
+// Аутентификация и назначение роли; роль из браузера не принимается на веру.\nasync function authenticate(request, env) {
   const initData = request.headers.get("X-Telegram-Init-Data");
   const verified = await verifyTelegramInitData(initData, env.TELEGRAM_BOT_TOKEN);
   if (!verified) return null;
@@ -113,7 +131,7 @@ const fail = (error, origin) => {
   return json({ error: status === 500 ? "request_failed" : message }, status, origin);
 };
 
-export default {
+// Точка входа Worker: маршрутизация API-запросов, OPTIONS/CORS и раздача frontend assets.\nexport default {
   async scheduled(controller, env, ctx) {
     try {
       if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
