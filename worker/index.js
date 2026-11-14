@@ -16,7 +16,9 @@
  * ЛОКАЛЬНЫЙ ЗАПУСК: npm install, затем npx wrangler dev.
  * ПРОВЕРКА/СБОРКА: npm run build. Публикация: npx wrangler deploy
  * (обычно production публикуется GitHub Actions при push в main).
- */\n\nconst json = (data, status = 200, origin = null) => new Response(JSON.stringify(data), {
+ */
+
+const json = (data, status = 200, origin = null) => new Response(JSON.stringify(data), {
   status,
   headers: {
     "Content-Type": "application/json; charset=utf-8",
@@ -39,7 +41,8 @@ function safeEqual(a, b) {
   return diff === 0;
 }
 
-// Проверка Telegram initData: сервер самостоятельно проверяет HMAC-подпись и freshness.\nasync function verifyTelegramInitData(initData, botToken) {
+// Проверка Telegram initData: сервер самостоятельно проверяет HMAC-подпись и freshness.
+async function verifyTelegramInitData(initData, botToken) {
   if (!initData || !botToken || initData.length > 8192) return null;
   const params = new URLSearchParams(initData);
   const receivedHash = params.get("hash");
@@ -67,7 +70,8 @@ function configuredRole(id, env) {
   return "participant";
 }
 
-// Тонкая обёртка над Supabase REST/RPC; использует только серверные credentials Worker.\nasync function dbRequest(env, path, options = {}) {
+// Тонкая обёртка над Supabase REST/RPC; использует только серверные credentials Worker.
+async function dbRequest(env, path, options = {}) {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("database_not_configured");
   const response = await fetch(`${env.SUPABASE_URL.replace(/\/$/, "")}/rest/v1/${path}`, {
     ...options,
@@ -90,7 +94,8 @@ function configuredRole(id, env) {
   return data;
 }
 
-// Аутентификация и назначение роли; роль из браузера не принимается на веру.\nasync function authenticate(request, env) {
+// Аутентификация и назначение роли; роль из браузера не принимается на веру.
+async function authenticate(request, env) {
   const initData = request.headers.get("X-Telegram-Init-Data");
   const verified = await verifyTelegramInitData(initData, env.TELEGRAM_BOT_TOKEN);
   if (!verified) return null;
@@ -131,7 +136,8 @@ const fail = (error, origin) => {
   return json({ error: status === 500 ? "request_failed" : message }, status, origin);
 };
 
-// Точка входа Worker: маршрутизация API-запросов, OPTIONS/CORS и раздача frontend assets.\nexport default {
+// Точка входа Worker: маршрутизация API-запросов, OPTIONS/CORS и раздача frontend assets.
+export default {
   async scheduled(controller, env, ctx) {
     try {
       if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return;
@@ -167,6 +173,7 @@ const fail = (error, origin) => {
       }});
     }
     if (origin && !sameOrigin) return json({ error: "origin_not_allowed" }, 403);
+    // Публичные служебные маршруты не должны возвращать значения секретов.
     if (url.pathname === "/api/health" && request.method === "GET") {
       return json({
         ok: true,
@@ -198,6 +205,7 @@ const fail = (error, origin) => {
       } catch (error) { return fail(error, sameOrigin); }
     }
 
+    // Защищённые API-маршруты: далее выполняются аутентификация и проверки доступа.
     if (url.pathname.startsWith("/api/")) {
       let auth;
       try { auth = await authenticate(request, env); }
