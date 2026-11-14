@@ -1,4 +1,27 @@
-// @ts-nocheck
+/*
+ * MUSIC SLAY — клиентское приложение (React).
+ *
+ * КАК ЧИТАТЬ ФАЙЛ:
+ * 1) Константы PHASES / ROLE_NAMES / ADMIN_TABS — этапы премии, роли и вкладки админки.
+ * 2) ERRORS и DEADLINE — тексты ошибок и дата открытия.
+ * 3) Функции ниже констант — преобразование данных, сортировка, таймеры,
+ *    подготовка голосов/результатов и общий HTTP-клиент request().
+ * 4) React-компоненты — отдельные части интерфейса: панели, карточки,
+ *    экраны участника/жюри/администратора и модальные окна.
+ * 5) Главный компонент App — загрузка Telegram-сессии, состояние экранов,
+ *    вызовы API и выбор интерфейса по роли.
+ *
+ * ПОЛЬЗОВАНИЕ И РАЗРАБОТКА:
+ * - npm install — установить зависимости.
+ * - npm run dev — запустить локальный Vite-сервер.
+ * - npm run build — проверить production-сборку в dist/.
+ * - npm run preview — посмотреть собранную версию локально.
+ * - Все защищённые запросы отправляются через request(); не обращайтесь
+ *   к Supabase напрямую из браузера и не помещайте секреты в этот файл.
+ * - Права пользователя приходят от Worker после проверки Telegram initData.
+ * - Данные seed* используются только как демонстрационные/резервные данные;
+ *   реальные изменения сохраняются сервером в Supabase.
+ */\n\n// @ts-nocheck
 import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -27,7 +50,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const PHASES = [
+// Этапы премии и их идентификаторы — должны совпадать с серверной логикой.\nconst PHASES = [
   { id: "preparation", label: "Подготовка", short: "Старт" },
   { id: "candidates", label: "Кандидаты", short: "Имена" },
   { id: "voting", label: "Голосование", short: "Голос" },
@@ -84,7 +107,7 @@ const ERRORS = {
 const DEADLINE = new Date("2026-12-01T00:00:00+03:00");
 const HOUR_PRESETS = [0, 6, 12, 24, 48, 72];
 
-function cx(...parts) {
+// Небольшие утилиты форматирования, валидации и подготовки данных интерфейса.\nfunction cx(...parts) {
   return parts.filter(Boolean).join(" ");
 }
 
@@ -171,7 +194,7 @@ function haptic(kind) {
   }
 }
 
-function seedNominations() {
+// Демонстрационные данные для стартового/резервного отображения; не источник production-истины.\nfunction seedNominations() {
   const rows = [
     ["artist", "Артист года", [["n1a", "МАЙЯ ВОЛЬТ", 42], ["n1b", "СЕВЕРНЫЙ ПОРТ", 37], ["n1c", "КИРИЛЛ ДЫМ", 31], ["n1d", "АУРА 404", 28], ["n1e", "ТИХИЙ РЕЙВ", 22], ["n1f", "ЛУНА ПАРК", 14], ["n1g", "СОФТ ГОЛД", 9]]],
     ["track", "Трек года", [["n2a", "Ночной контур", 51], ["n2b", "Стекло и мёд", 44], ["n2c", "Пульс города", 33], ["n2d", "Тихий рейс", 27], ["n2e", "После полуночи", 19], ["n2f", "Белый шум", 11]]],
@@ -250,7 +273,7 @@ function personalVoteRows(nominations, votes) {
   return rows;
 }
 
-async function request(path, initData, options = {}) {
+// Единая точка HTTP-доступа к Worker API: Telegram initData передаётся в заголовке.\nasync function request(path, initData, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
@@ -283,7 +306,7 @@ function mapState(data) {
   };
 }
 
-function IconButton({ label, children, ...props }) {
+// Переиспользуемые визуальные компоненты интерфейса.\nfunction IconButton({ label, children, ...props }) {
   return (
     <button type="button" className="icon-btn" aria-label={label} {...props}>
       {children}
@@ -479,7 +502,7 @@ class AppErrorBoundary extends Component {
   }
 }
 
-export function App() {
+export // Корневой компонент: авторизация, загрузка данных, состояние приложения и маршрутизация по ролям.\nfunction App() {
   const initialNoms = useMemo(() => seededNominations(), []);
   const [mode, setMode] = useState("demo");
   const [initData, setInitData] = useState("");
