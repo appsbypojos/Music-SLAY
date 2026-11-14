@@ -1,3 +1,7 @@
+# Автоматический production-деплой при обновлении main или ручном запуске из Actions.
+# Секреты CLOUDFLARE_API_TOKEN и CLOUDFLARE_ACCOUNT_ID задаются в GitHub repository settings.
+# Smoke test проверяет, что HTML ссылается на JS bundle именно из текущей сборки
+# и что этот bundle доступен с production Worker.
 name: Deploy MUSIC SLAY 2026
 
 on:
