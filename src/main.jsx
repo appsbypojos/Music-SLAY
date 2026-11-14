@@ -942,6 +942,38 @@ export function App() {
     });
   }
 
+  function askRestart() {
+    setConfirm({
+      title: "Начать заново?",
+      body: "Все голоса, оценки жюри и предложенные кандидаты будут очищены. Номинации останутся, а премия вернётся на этап «Подготовка».",
+      confirmLabel: "Начать заново",
+      run: restartSlay,
+    });
+  }
+
+  function restartSlay() {
+    return run("restart", async () => {
+      if (modeRef.current === "demo") {
+        resetDemo();
+        return;
+      }
+      await request("/api/admin/restart", initRef.current, { method: "POST", body: JSON.stringify({}) });
+      setVotes({});
+      setCommitted({});
+      setScores({});
+      setScoreState({});
+      setTexts({});
+      setResults([]);
+      setSlide(0);
+      setPlaying(false);
+      setActive(0);
+      setAdminTab("nominations");
+      setScheduleAt("");
+      await refreshState();
+      await refreshVotes();
+    }, "Премия начата заново");
+  }
+
   function scheduleNextPhase() {
     if (!nextPhase || !scheduleAt) {
       notify("Укажи дату и время перехода", "error");
@@ -1088,6 +1120,7 @@ export function App() {
           onSaveNominations={saveNominations}
           onSaveTop5={saveTop5}
           onAskPhase={askPhase}
+          onRestart={askRestart}
           onSchedulePhase={scheduleNextPhase}
           onRefreshVotes={() => refreshVotes().catch((error) => notify(humanError(error), "error"))}
           onRefreshResults={() => run("results", refreshResults, "Результаты обновлены")}
@@ -1587,7 +1620,7 @@ function AdminConsole(props) {
   const {
     user, role, phaseMeta, phaseEndsAt, phaseRemaining, nominations, draft, setDraft, adminTab, setAdminTab,
     adminVotes, adminVoters, juryMembers, juryTelegramId, setJuryTelegramId, juryDisplayName, setJuryDisplayName, onAddJuryMember, onRemoveJuryMember, onRefreshJury, votesUpdated, scheduleAt, setScheduleAt, busy, results, nextPhase, top5Ready, missingTop5,
-    onSaveNominations, onSaveTop5, onAskPhase, onSchedulePhase, onRefreshVotes, onRefreshResults, slide, setSlide, playing, setPlaying, phase,
+    onSaveNominations, onSaveTop5, onAskPhase, onRestart, onSchedulePhase, onRefreshVotes, onRefreshResults, slide, setSlide, playing, setPlaying, phase,
   } = props;
   return (
     <main className="admin">
@@ -1783,6 +1816,11 @@ function AdminConsole(props) {
               {nextPhase?.id === "voting" && !top5Ready ? (
                 <p className="hint">Нет топ-5: {missingTop5.join(", ") || "проверь номинации"}.</p>
               ) : null}
+              <div className="row-actions">
+                <button type="button" className="btn ghost" disabled={Boolean(busy)} onClick={onRestart}>
+                  <RefreshCw size={15} /> Начать заново
+                </button>
+              </div>
               <ol className="timeline">
                 {PHASES.map((item, index) => {
                   const state = item.id === phase ? "is-now" : PHASES.findIndex((p) => p.id === phase) > index ? "is-done" : "";
