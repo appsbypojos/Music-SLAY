@@ -81,7 +81,7 @@ const ERRORS = {
   origin_not_allowed: "Запрос отклонён",
 };
 
-const DEADLINE = new Date("2026-12-07T00:00:00+03:00");
+const DEADLINE = new Date("2026-12-01T00:00:00+03:00");
 const HOUR_PRESETS = [0, 6, 12, 24, 48, 72];
 
 function cx(...parts) {
@@ -332,7 +332,7 @@ function PhaseRail({ phase }) {
 function Countdown({ now }) {
   const parts = now ? splitCountdown(DEADLINE.getTime() - now) : [null, null, null, null];
   return (
-    <div className="countdown" aria-label="До 7 декабря 2026">
+    <div className="countdown" aria-label="До 1 декабря 2026">
       {parts.map((value, index) => (
         <div className="count-cell" key={index}>
           <strong suppressHydrationWarning>{value === null ? "—" : String(value).padStart(2, "0")}</strong>
