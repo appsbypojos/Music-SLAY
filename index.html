@@ -1,3 +1,4 @@
+<!-- HTML entrypoint: Telegram WebApp SDK loads before the React module. #root is the mount point. -->
 <!doctype html>
 <html lang="ru">
   <head>
@@ -8,6 +9,7 @@
     <meta name="description" content="MUSIC SLAY 2026 — музыкальная премия" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>MUSIC SLAY 2026</title>
+    <!-- Telegram injects WebApp.initData here; the Worker verifies it server-side. -->
     <script id="telegram-webapp-sdk" async src="https://telegram.org/js/telegram-web-app.js"></script>
   </head>
   <body>
@@ -31,6 +33,7 @@
         }, 10000);
       })();
     </script>
+    <!-- Vite entrypoint: mounts the React application into #root. -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
